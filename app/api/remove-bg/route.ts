@@ -56,9 +56,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '服务器错误' }, { status: 500 })
   }
 }
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
