@@ -1,0 +1,42 @@
+{
+  "timestamp": 1774178705773,
+  "outputDir": ".vercel/output/static/_worker.js",
+  "versions": {
+    "@cloudflare/next-on-pages": "1.13.16"
+  },
+  "buildFiles": {
+    "functions": {
+      "invalid": [],
+      "middleware": [],
+      "edge": [],
+      "prerendered": [],
+      "ignored": []
+    },
+    "staticAssets": [
+      "/404.html",
+      "/_next/static/chunks/4bd1b696-cf72ae8a39fa05aa.js",
+      "/_next/static/chunks/964-f5b0d39900994cb7.js",
+      "/_next/static/chunks/app/_not-found/page-0a2aff008371df49.js",
+      "/_next/static/chunks/app/api/remove-bg/route-0b1c93ee4245c0e6.js",
+      "/_next/static/chunks/app/layout-95c82c99a958531a.js",
+      "/_next/static/chunks/app/page-0920a046bac6af47.js",
+      "/_next/static/chunks/framework-16b358206d63ec5d.js",
+      "/_next/static/chunks/main-app-6853850a85fb2b1d.js",
+      "/_next/static/chunks/main-ddb646091e5c5cd3.js",
+      "/_next/static/chunks/pages/_app-0a0020ddd67f79cf.js",
+      "/_next/static/chunks/pages/_error-03529f2c21436739.js",
+      "/_next/static/chunks/polyfills-42372ed130431b0a.js",
+      "/_next/static/chunks/webpack-d5dc98f056d992d1.js",
+      "/_next/static/css/c5b963b91b17bbf4.css",
+      "/_next/static/oB7caAUCXJJ8xehFSUlUI/_buildManifest.js",
+      "/_next/static/oB7caAUCXJJ8xehFSUlUI/_ssgManifest.js",
+      "/index.html",
+      "/index.txt"
+    ],
+    "identifiers": {
+      "wasm": {},
+      "manifest": {},
+      "webpack": {}
+    }
+  }
+}
