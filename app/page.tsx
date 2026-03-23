@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useCallback, DragEvent, ChangeEvent } from 'react'
+import { useState, useCallback, DragEvent, ChangeEvent, useEffect } from 'react'
+
+const GOOGLE_CLIENT_ID = '1006021607677-s5p3qn6jbfe72faj4q4tioro7fdgfv7s.apps.googleusercontent.com';
 
 export default function Home() {
   const [originalImage, setOriginalImage] = useState<string | null>(null)
@@ -8,6 +10,62 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [user, setUser] = useState<any>(null)
+
+  // 初始化时检查登录状态
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            setUser(data.user);
+          }
+        }
+      } catch (err) {
+        console.error('检查登录状态失败:', err);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // 监听 Google 登录事件
+  useEffect(() => {
+    const handleGoogleLogin = (event: any) => {
+      handleCredentialResponse(event.detail);
+    };
+
+    window.addEventListener('google-login', handleGoogleLogin);
+    return () => window.removeEventListener('google-login', handleGoogleLogin);
+  }, []);
+
+  const handleCredentialResponse = async (response: any) => {
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: response.credential })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setUser(data.user);
+      } else {
+        setError(data.error || '登录失败');
+      }
+    } catch (err) {
+      setError('登录失败，请重试');
+      console.error(err);
+    }
+  };
+
+  const handleLogout = () => {
+    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    setUser(null);
+  };
 
   const handleFile = useCallback(async (file: File) => {
     // 验证文件类型
@@ -62,7 +120,7 @@ export default function Home() {
   const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setIsDragging(false)
-    
+
     const file = e.dataTransfer.files[0]
     if (file) handleFile(file)
   }, [handleFile])
@@ -84,7 +142,7 @@ export default function Home() {
 
   const handleDownload = useCallback(() => {
     if (!resultImage) return
-    
+
     const link = document.createElement('a')
     link.href = resultImage
     link.download = `removed_bg_${Date.now()}.png`
@@ -99,16 +157,65 @@ export default function Home() {
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
-      {/* 标题 */}
+      {/* 标题和用户信息 */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold text-gray-800 mb-2">
           🖼️ BG Remover
         </h1>
         <p className="text-gray-600">一键去除图片背景，快速且免费</p>
+
+        {/* 用户登录/退出 */}
+        <div className="mt-4">
+          {user ? (
+            <div className="flex items-center justify-center gap-4">
+              <img
+                src={user.picture}
+                alt={user.name}
+                className="w-8 h-8 rounded-full"
+              />
+              <span className="text-gray-700">{user.name}</span>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-red-600 hover:text-red-700"
+              >
+                退出登录
+              </button>
+            </div>
+          ) : (
+            <div
+              id="g_id_onload"
+              data-client_id={GOOGLE_CLIENT_ID}
+              data-callback="handleCredentialResponse"
+              data-auto_prompt="false"
+            />
+          )}
+        </div>
       </div>
 
+      {/* 登录后显示 Google 登录按钮 */}
+      {!user && (
+        <div className="flex justify-center mb-8">
+          <div
+            className="g_id_signin"
+            data-type="standard"
+            data-size="large"
+            data-theme="outline"
+            data-text="sign_in_with"
+            data-shape="rectangular"
+            data-logo_alignment="left"
+          />
+        </div>
+      )}
+
+      {/* 提示：未登录无法使用 */}
+      {!user && (
+        <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-8">
+          <p className="text-yellow-800">🔐 请先登录以使用去背景功能</p>
+        </div>
+      )}
+
       {/* 上传区域 */}
-      {!originalImage && (
+      {user && !originalImage && (
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -117,8 +224,8 @@ export default function Home() {
           className={`
             border-2 border-dashed rounded-2xl p-16 text-center cursor-pointer
             transition-all duration-200
-            ${isDragging 
-              ? 'border-blue-500 bg-blue-50' 
+            ${isDragging
+              ? 'border-blue-500 bg-blue-50'
               : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
             }
           `}
@@ -163,9 +270,9 @@ export default function Home() {
             <div>
               <h3 className="text-lg font-medium text-gray-700 mb-2">原图</h3>
               <div className="bg-white rounded-xl p-4 shadow-sm border">
-                <img 
-                  src={originalImage} 
-                  alt="原图" 
+                <img
+                  src={originalImage}
+                  alt="原图"
                   className="w-full h-auto rounded-lg"
                 />
               </div>
@@ -177,9 +284,9 @@ export default function Home() {
               <div className="bg-white rounded-xl p-4 shadow-sm border">
                 {resultImage ? (
                   <div className="checkerboard rounded-lg">
-                    <img 
-                      src={resultImage} 
-                      alt="结果" 
+                    <img
+                      src={resultImage}
+                      alt="结果"
                       className="w-full h-auto rounded-lg"
                     />
                   </div>
@@ -199,8 +306,8 @@ export default function Home() {
               disabled={!resultImage}
               className={`
                 px-6 py-3 rounded-lg font-medium transition-all
-                ${resultImage 
-                  ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                ${resultImage
+                  ? 'bg-blue-500 text-white hover:bg-blue-600'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }
               `}
