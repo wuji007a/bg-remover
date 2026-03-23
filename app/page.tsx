@@ -2,7 +2,9 @@
 
 import { useState, useCallback, DragEvent, ChangeEvent, useEffect } from 'react'
 
-const GOOGLE_CLIENT_ID = '1006021607677-s5p3qn6jbfe72faj4q4tioro7fdgfv7s.apps.googleusercontent.com';
+// Google OAuth 配置（从环境变量读取，或使用默认值）
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '1006021607677-s5p3qn6jbfe72faj4q4tioro7fdgfv7s.apps.googleusercontent.com';
+const GOOGLE_REDIRECT_URI = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI || 'https://bg-remover-6dp.pages.dev/api/auth/callback';
 
 export default function Home() {
   const [originalImage, setOriginalImage] = useState<string | null>(null)
@@ -31,35 +33,15 @@ export default function Home() {
     checkAuth();
   }, []);
 
-  // 监听 Google 登录事件
-  useEffect(() => {
-    const handleGoogleLogin = (event: any) => {
-      handleCredentialResponse(event.detail);
-    };
-
-    window.addEventListener('google-login', handleGoogleLogin);
-    return () => window.removeEventListener('google-login', handleGoogleLogin);
-  }, []);
-
-  const handleCredentialResponse = async (response: any) => {
-    try {
-      const res = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: response.credential })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setUser(data.user);
-      } else {
-        setError(data.error || '登录失败');
-      }
-    } catch (err) {
-      setError('登录失败，请重试');
-      console.error(err);
-    }
+  // 处理 Google 登录
+  const handleGoogleLogin = () => {
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${GOOGLE_CLIENT_ID}&` +
+      `redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}&` +
+      `response_type=code&` +
+      `scope=openid%20email%20profile&` +
+      `access_type=offline`;
+    window.location.href = authUrl;
   };
 
   const handleLogout = () => {
@@ -181,29 +163,24 @@ export default function Home() {
                 退出登录
               </button>
             </div>
-          ) : (
-            <div
-              id="g_id_onload"
-              data-client_id={GOOGLE_CLIENT_ID}
-              data-callback="handleCredentialResponse"
-              data-auto_prompt="false"
-            />
-          )}
+          ) : null}
         </div>
       </div>
 
       {/* 登录后显示 Google 登录按钮 */}
       {!user && (
         <div className="flex justify-center mb-8">
-          <div
-            className="g_id_signin"
-            data-type="standard"
-            data-size="large"
-            data-theme="outline"
-            data-text="sign_in_with"
-            data-shape="rectangular"
-            data-logo_alignment="left"
-          />
+          <button
+            onClick={handleGoogleLogin}
+            className="flex items-center gap-3 px-6 py-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm"
+          >
+            <img
+              src="https://www.svgrepo.com/show/475656/google-color.svg"
+              alt="Google"
+              className="w-5 h-5"
+            />
+            <span className="text-gray-700 font-medium">使用 Google 登录</span>
+          </button>
         </div>
       )}
 
