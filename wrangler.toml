@@ -2,3 +2,10 @@ name = "bg-remover"
 compatibility_date = "2026-03-22"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".vercel/output/static"
+
+# 非敏感的环境变量
+[vars]
+GOOGLE_CLIENT_ID = "1006021607677-s5p3qn6jbfe72faj4q4tioro7fdgfv7s.apps.googleusercontent.com"
+GOOGLE_REDIRECT_URI = "https://bg-remover-6dp.pages.dev/api/auth/callback"
+NEXT_PUBLIC_GOOGLE_CLIENT_ID = "1006021607677-s5p3qn6jbfe72faj4q4tioro7fdgfv7s.apps.googleusercontent.com"
+NEXT_PUBLIC_GOOGLE_REDIRECT_URI = "https://bg-remover-6dp.pages.dev/api/auth/callback"
