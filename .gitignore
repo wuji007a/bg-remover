@@ -3,3 +3,22 @@ node_modules
 .env.local
 .DS_Store
 .vercel
+.dev.vars
+
+# 敏感配置文档
+CLOUDFLARE_SETUP.md
+MANUAL_SETUP.md
+SETUP_CLOUDFLARE.md
+auto-setup-secrets.sh
+setup-secrets-v2.sh
+setup-secrets-v3.sh
+setup-secrets-v4.sh
+setup-secrets.sh
+manual-setup-guide.sh
+TECHNICAL_PLAN.md
+
+# 测试文件
+test-*.js
+debug_*.html
+output-*.png
+test-image.jpg
