@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useCallback, DragEvent, ChangeEvent, useEffect } from 'react'
+import { Package, ShoppingCart, X } from 'lucide-react'
+import QuotaBadge from '@/components/quota-badge'
+import QuotaModal from '@/components/quota-modal'
 
 // Google OAuth 配置（从环境变量读取，或使用默认值）
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '1006021607677-s5p3qn6jbfe72faj4q4tioro7fdgfv7s.apps.googleusercontent.com';
@@ -13,6 +16,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false)
 
   // 初始化时检查登录状态
   useEffect(() => {
@@ -50,6 +54,20 @@ export default function Home() {
   };
 
   const handleFile = useCallback(async (file: File) => {
+    // 检查配额
+    try {
+      const quotaRes = await fetch('/api/quota')
+      const quotaData = await quotaRes.json()
+
+      if (quotaData.success && quotaData.data.total === 0) {
+        // 配额不足，显示弹窗
+        setIsQuotaModalOpen(true)
+        return
+      }
+    } catch (err) {
+      console.error('检查配额失败:', err)
+    }
+
     // 验证文件类型
     const validTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!validTypes.includes(file.type)) {
@@ -140,31 +158,45 @@ export default function Home() {
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
       {/* 标题和用户信息 */}
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2">
-          🖼️ BG Remover
-        </h1>
-        <p className="text-gray-600">一键去除图片背景，快速且免费</p>
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-800">
+              🖼️ BG Remover
+            </h1>
+            {user && (
+              <div className="flex items-center gap-3">
+                <QuotaBadge />
+                <a
+                  href="/pricing"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>购买套餐</span>
+                </a>
+              </div>
+            )}
+          </div>
 
-        {/* 用户登录/退出 */}
-        <div className="mt-4">
+          {/* 用户登录/退出 */}
           {user ? (
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center gap-4">
               <img
                 src={user.picture}
                 alt={user.name}
                 className="w-8 h-8 rounded-full"
               />
-              <span className="text-gray-700">{user.name}</span>
+              <span className="text-gray-700 text-sm">{user.name}</span>
               <button
                 onClick={handleLogout}
                 className="text-sm text-red-600 hover:text-red-700"
               >
-                退出登录
+                退出
               </button>
             </div>
           ) : null}
         </div>
+        <p className="text-gray-600 text-center">一键去除图片背景，快速且免费</p>
       </div>
 
       {/* 登录后显示 Google 登录按钮 */}
@@ -301,9 +333,15 @@ export default function Home() {
         </div>
       )}
 
+      {/* 配额不足弹窗 */}
+      <QuotaModal
+        isOpen={isQuotaModalOpen}
+        onClose={() => setIsQuotaModalOpen(false)}
+      />
+
       {/* 页脚 */}
       <footer className="mt-16 text-center text-gray-400 text-sm">
-        Powered by remove.bg API • Made with Next.js
+        Powered by ClipDrop API • Made with Next.js
       </footer>
     </main>
   )
