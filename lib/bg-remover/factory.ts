@@ -58,7 +58,8 @@ export function createImageRemoverService(): ImageRemoverService {
   
   const config: ProviderConfig = {
     type: providerType,
-    apiKey: process.env.BG_REMOVER_API_KEY || '',
+    // 支持两种环境变量名（向后兼容）
+    apiKey: process.env.BG_REMOVER_API_KEY || process.env.REMOVE_BG_API_KEY || '',
   }
 
   return new ImageRemoverService(config)
