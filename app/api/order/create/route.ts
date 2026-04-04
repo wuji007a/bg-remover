@@ -42,16 +42,11 @@ export async function POST(request: NextRequest) {
       }, { status: 401 })
     }
 
-    // 解码 token 获取用户 ID
-    let decoded: any
-    try {
-      decoded = JSON.parse(Buffer.from(token, 'base64').toString())
-    } catch (e) {
-      console.error('Token decode error:', e)
-      decoded = null
-    }
+    // 解码 token 获取用户 ID（这是 Google ID）
+    const decoded = JSON.parse(Buffer.from(token, 'base64').toString())
+    const googleId = decoded.userId  // 这是 Google ID（字符串）
 
-    if (!decoded || !decoded.userId) {
+    if (!googleId) {
       return NextResponse.json({
         success: false,
         error: '无效的登录状态，请重新登录',
@@ -59,8 +54,7 @@ export async function POST(request: NextRequest) {
       }, { status: 401 })
     }
 
-    const userId = decoded.userId
-    console.log(`🔍 用户 ID：${userId}`)
+    console.log(`🔍 Google ID：${googleId}`)
 
     // 获取 D1 数据库实例
     const DB = (process.env as any).DB
@@ -73,7 +67,30 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================
-    // 1. 查询产品信息
+    // 1. 从 users 表查询真实的数据库 user_id
+    // ============================================
+    const user = await DB.prepare(`
+      SELECT id, email, name FROM users WHERE google_id = ?
+    `).bind(googleId).first() as {
+      id: number
+      email: string
+      name: string
+    } | null
+
+    if (!user) {
+      return NextResponse.json({
+        success: false,
+        error: '用户不存在，请重新登录',
+        needLogin: true
+      }, { status: 404 })
+    }
+
+    const dbUserId = user.id  // 这是真实的数据库 ID（整数）
+
+    console.log(`✅ 查询到用户：${dbUserId} (${user.name})`)
+
+    // ============================================
+    // 2. 查询产品信息
     // ============================================
     const product = await DB.prepare(`
       SELECT * FROM products WHERE id = ? AND is_active = 1
@@ -95,7 +112,7 @@ export async function POST(request: NextRequest) {
     console.log(`✅ 产品查询成功：${product.name}（${product.quota_count}次，¥${product.price}）`)
 
     // ============================================
-    // 2. 检查支付方式
+    // 3. 检查支付方式
     // ============================================
     const availableMethods = {
       'paypal': { enabled: true, name: 'PayPal', note: '已上线' },
@@ -122,7 +139,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================
-    // 3. 生成订单号
+    // 4. 生成订单号
     // ============================================
     const timestamp = Date.now().toString()
     const random = Math.random().toString(36).substring(2, 11)
@@ -131,14 +148,14 @@ export async function POST(request: NextRequest) {
     console.log(`✅ 订单号生成：${orderNo}`)
 
     // ============================================
-    // 4. 创建订单
+    // 5. 创建订单
     // ============================================
     const result = await DB.prepare(`
       INSERT INTO orders (order_no, user_id, product_id, amount, quota_awarded, payment_method, payment_provider)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
       orderNo,
-      userId,
+      dbUserId,  // 使用数据库 ID（整数）
       productId,
       product.price,
       product.quota_count,
@@ -149,7 +166,7 @@ export async function POST(request: NextRequest) {
     console.log(`✅ 订单创建成功：${orderNo}（¥${product.price}，${product.quota_count}次）`)
 
     // ============================================
-    // 5. 创建支付订单（PayPal）
+    // 6. 创建支付订单（PayPal）
     // ============================================
     let paymentData: any = null
 
@@ -207,7 +224,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================
-    // 6. 返回订单信息
+    // 7. 返回订单信息
     // ============================================
     return NextResponse.json({
       success: true,
