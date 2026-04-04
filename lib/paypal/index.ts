@@ -57,12 +57,12 @@ export async function createPayPalOrder(
 
   const requestBody = {
     intent: 'CAPTURE' as const,
-    purchase_units: [
+    purchaseUnits: [
       {
-        reference_id: orderNo,
+        referenceId: orderNo,
         description: 'BG Remover 去背景服务配额购买',
         amount: {
-          currency_code: 'USD' as const,
+          currencyCode: 'USD' as const,
           value: usdAmount,
         },
       },
