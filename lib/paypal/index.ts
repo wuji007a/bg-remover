@@ -80,6 +80,7 @@ export async function createPayPalOrder(
   const baseUrl = PAYPAL_BASE_URLS[config.mode]
 
   // 转换为美元（PayPal 只支持美元结算）
+  // 假设 1 美元 = 7.2 人民币
   const usdAmount = (amount / 7.2).toFixed(2)
   console.log('  - 转换后金额 (USD):', usdAmount)
 
@@ -117,6 +118,7 @@ export async function createPayPalOrder(
     if (!response.ok) {
       const errorText = await response.text()
       console.error('❌ PayPal API 调用失败:', errorText)
+      console.error('  - 状态码:', response.status)
       throw new Error(`PayPal API 调用失败: ${response.status} - ${errorText}`)
     }
 
@@ -125,11 +127,25 @@ export async function createPayPalOrder(
     console.log('\n✅ PayPal API 调用成功')
     console.log('  - PayPal 订单 ID:', result.id)
     console.log('  - 状态:', result.status)
-    console.log('  - Links:', result.links?.map(l => `${l.rel}: ${l.href}`).join(', '))
+    console.log('  - Links 数量:', result.links?.length || 0)
 
     // 提取支付链接
-    const approveLink = result.links?.find((link: any) => link.rel === 'approve')
-    console.log('  - 支付链接:', approveLink?.href || '未找到')
+    const links = result.links || []
+    let approveLink: string | null = null
+
+    for (let i = 0; i < links.length; i++) {
+      const link = links[i]
+      console.log(`  - Link ${i + 1}: ${link.rel} - ${link.href}`)
+
+      if (link.rel === 'approve') {
+        approveLink = link.href
+        console.log('  - 找到支付链接 ✓')
+      }
+    }
+
+    if (!approveLink) {
+      console.warn('⚠️  未找到 approve 链接')
+    }
 
     console.log('\n========================================')
     console.log('🎉 PayPal 订单创建成功！')
@@ -141,11 +157,13 @@ export async function createPayPalOrder(
       orderNo,
       amount: usdAmount,
       currency: 'USD',
-      paymentLink: approveLink?.href || null,
+      paymentLink: approveLink,
       status: result.status,
     }
   } catch (error: any) {
-    console.error('\n❌ PayPal 订单创建失败')
+    console.error('\n========================================')
+    console.error('❌ PayPal 订单创建失败')
+    console.error('========================================\n')
     console.error('  - 错误名称:', error.name)
     console.error('  - 错误消息:', error.message)
     console.error('  - 错误堆栈:', error.stack)
@@ -181,7 +199,7 @@ export async function capturePayPalOrder(
     const accessToken = await getAccessToken(config)
 
     // 2. 捕获支付
-    console.log('\n📡 调用 PayPal 捕获 API...')
+    console.log('📡 调用 PayPal 捕获 API...')
 
     const response = await fetch(`${baseUrl}/v2/checkout/orders/${paypalOrderId}/capture`, {
       method: 'POST',
@@ -194,6 +212,7 @@ export async function capturePayPalOrder(
     if (!response.ok) {
       const errorText = await response.text()
       console.error('❌ PayPal 捕获失败:', errorText)
+      console.error('  - 状态码:', response.status)
       throw new Error(`PayPal 捕获失败: ${response.status} - ${errorText}`)
     }
 
@@ -216,7 +235,9 @@ export async function capturePayPalOrder(
       updateTime: result.update_time,
     }
   } catch (error: any) {
-    console.error('\n❌ PayPal 捕获失败')
+    console.error('\n========================================')
+    console.error('❌ PayPal 捕获失败')
+    console.error('========================================\n')
     console.error('  - 错误名称:', error.name)
     console.error('  - 错误消息:', error.message)
     console.error('  - 错误堆栈:', error.stack)
@@ -244,11 +265,26 @@ export async function verifyPayPalWebhook(
 ) {
   console.log('\n📩 收到 PayPal Webhook')
   console.log('  - Webhook ID:', webhookId)
-  console.log('⚠️  Webhook 签名验证已跳过（Edge Runtime 限制）')
 
-  return {
-    success: true,
-    verified: true,
+  try {
+    // 由于 Edge Runtime 环境限制，暂时跳过签名验证
+    // 实际部署时需要在 PayPal Dashboard 配置 Webhook URL
+    // 并在生产环境中使用 Cloudflare Workers 处理 Webhook 验证
+
+    console.log('⚠️  Webhook 签名验证已跳过（Edge Runtime 限制）')
+
+    return {
+      success: true,
+      verified: true,
+    }
+  } catch (error: any) {
+    console.error('❌ Webhook 验证失败')
+    console.error('  - 错误:', error.message)
+
+    return {
+      success: false,
+      error: error.message || 'Webhook 验证失败',
+    }
   }
 }
 
