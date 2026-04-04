@@ -8,7 +8,7 @@
  * - 处理支付回调
  */
 
-import { Client, Environment, OrdersController } from '@paypal/paypal-server-sdk'
+import { Client, Environment, OrdersController, CheckoutPaymentIntent } from '@paypal/paypal-server-sdk'
 
 /**
  * PayPal 配置
@@ -56,13 +56,13 @@ export async function createPayPalOrder(
   const usdAmount = (amount / 7.2).toFixed(2)
 
   const requestBody = {
-    intent: 'CAPTURE' as const,
+    intent: CheckoutPaymentIntent.Capture,
     purchaseUnits: [
       {
         referenceId: orderNo,
         description: 'BG Remover 去背景服务配额购买',
         amount: {
-          currencyCode: 'USD' as const,
+          currencyCode: 'USD',
           value: usdAmount,
         },
       },
