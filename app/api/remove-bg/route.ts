@@ -4,16 +4,16 @@ export const runtime = 'edge'
 export const dynamic = 'force-dynamic'
 
 /**
- * 图片背景移除接口
+ * Image Background Removal API
  *
- * 功能：
- * 1. 检查用户登录状态
- * 2. 检查用户级别限流（1分钟最多5次请求）
- * 3. 检查IP级别限流（1分钟最多10次请求）
- * 4. 检查并扣减用户配额
- * 5. 调用背景移除 API
- * 6. 记录使用日志
- * 7. 更新限流计数
+ * Features:
+ * 1. Check user login status
+ * 2. Check user-level rate limiting (max 5 requests per minute)
+ * 3. Check IP-level rate limiting (max 10 requests per minute)
+ * 4. Check and deduct user quota
+ * 5. Call background removal API
+ * 6. Log usage
+ * 7. Update rate limiting counters
  */
 export async function POST(request: NextRequest) {
   try {
@@ -21,34 +21,50 @@ export async function POST(request: NextRequest) {
     const image = formData.get('image') as File
 
     if (!image) {
-      return NextResponse.json({ error: '请上传图片' }, { status: 400 })
+      return NextResponse.json({ error: 'Please upload an image' }, { status: 400 })
     }
 
-    // 获取用户 token
+    // Get user token
     const token = request.cookies.get('auth_token')?.value
     if (!token) {
-      return NextResponse.json({ 
-        error: '请先登录',
+      return NextResponse.json({
+        error: 'Please login first',
         needLogin: true
       }, { status: 401 })
     }
 
-    // 解码 token 获取用户 ID
+    // Decode token to get user ID (Google ID)
     const decoded = JSON.parse(Buffer.from(token, 'base64').toString())
-    const userId = decoded.userId
+    const googleId = decoded.userId
 
-    // 获取 IP 地址
+    // Get IP address
     const ip = request.headers.get('cf-connecting-ip') || 'unknown'
 
-    // 获取 D1 数据库实例
+    // Get D1 database instance
     const DB = (process.env as any).DB
 
+    let dbUserId: number | null = null
+
     if (!DB) {
-      console.warn('⏳ D1 数据库未配置，跳过配额检查')
+      console.warn('⏳ D1 database not configured, skipping quota check')
     } else {
       try {
+        // Query database ID from Google ID
+        const user = await DB.prepare(`
+          SELECT id FROM users WHERE google_id = ?
+        `).bind(googleId).first() as { id: number } | null
+
+        if (!user) {
+          return NextResponse.json({
+            error: 'User not found, please login again',
+            needLogin: true
+          }, { status: 404 })
+        }
+
+        dbUserId = user.id
+
         // ============================================
-        // 1. 检查用户级别限流（1分钟最多5次请求）
+        // 1. Check user-level rate limiting (max 5 requests per minute)
         // ============================================
         const userRateLimitCheck = await DB.prepare(`
           SELECT request_count, window_start
@@ -56,20 +72,20 @@ export async function POST(request: NextRequest) {
           WHERE user_id = ? AND window_start > datetime('now', '-1 minute')
           ORDER BY window_start DESC
           LIMIT 1
-        `).bind(userId).first() as { request_count: number } | null
+        `).bind(dbUserId).first() as { request_count: number } | null
 
         const userLimit = parseInt(process.env.RATE_LIMIT_USER_PER_MINUTE || '5')
 
         if (userRateLimitCheck && userRateLimitCheck.request_count >= userLimit) {
-          return NextResponse.json({ 
-            error: '请求过于频繁，请稍后再试',
+          return NextResponse.json({
+            error: 'Too many requests, please try again later',
             rateLimited: true,
             type: 'user'
           }, { status: 429 })
         }
 
         // ============================================
-        // 2. 检查 IP 级别限流（1分钟最多10次请求）
+        // 2. Check IP-level rate limiting (max 10 requests per minute)
         // ============================================
         const ipRateLimitCheck = await DB.prepare(`
           SELECT request_count, window_start
@@ -82,41 +98,41 @@ export async function POST(request: NextRequest) {
         const ipLimit = parseInt(process.env.RATE_LIMIT_IP_PER_MINUTE || '10')
 
         if (ipRateLimitCheck && ipRateLimitCheck.request_count >= ipLimit) {
-          return NextResponse.json({ 
-            error: '请求过于频繁，请稍后再试',
+          return NextResponse.json({
+            error: 'Too many requests, please try again later',
             rateLimited: true,
             type: 'ip'
           }, { status: 429 })
         }
 
         // ============================================
-        // 3. 检查用户配额
+        // 3. Check user quota
         // ============================================
         const quotaCheck = await DB.prepare(`
           SELECT
             (SELECT COALESCE(SUM(total - used), 0) FROM user_quota WHERE user_id = ? AND quota_type = 2) as prepaid,
             (SELECT COALESCE(total - used, 0) FROM user_quota WHERE user_id = ? AND quota_type = 1 ORDER BY created_at DESC LIMIT 1) as free
-        `).bind(userId, userId).first() as { prepaid: number, free: number } | null
+        `).bind(dbUserId, dbUserId).first() as { prepaid: number, free: number } | null
 
         const prepaid = quotaCheck?.prepaid || 0
         const free = quotaCheck?.free || 0
         const total = prepaid + free
 
         if (total <= 0) {
-          return NextResponse.json({ 
-            error: '配额不足，请购买套餐',
+          return NextResponse.json({
+            error: 'Insufficient quota, please purchase a package',
             needPay: true,
             quota: { prepaid, free, total }
           }, { status: 402 })
         }
 
         // ============================================
-        // 4. 扣减配额（优先扣除购买额度）
+        // 4. Deduct quota (deduct purchased quota first)
         // ============================================
         let quotaId: number | null = null
 
         if (prepaid > 0) {
-          // 扣除购买额度
+          // Deduct purchased quota
           const quotaUpdate = await DB.prepare(`
             UPDATE user_quota
             SET used = used + 1
@@ -127,12 +143,12 @@ export async function POST(request: NextRequest) {
               LIMIT 1
             )
             RETURNING id
-          `).bind(userId).first() as { id: number } | null
+          `).bind(dbUserId).first() as { id: number } | null
 
           quotaId = quotaUpdate!.id
-          console.log(`✅ 扣除购买额度：${quotaId}`)
+          console.log(`✅ Deducted purchased quota: ${quotaId}`)
         } else if (free > 0) {
-          // 扣除免费额度
+          // Deduct free quota
           const quotaUpdate = await DB.prepare(`
             UPDATE user_quota
             SET used = used + 1
@@ -143,20 +159,20 @@ export async function POST(request: NextRequest) {
               LIMIT 1
             )
             RETURNING id
-          `).bind(userId).first() as { id: number } | null
+          `).bind(dbUserId).first() as { id: number } | null
 
           quotaId = quotaUpdate!.id
-          console.log(`✅ 扣除免费额度：${quotaId}`)
+          console.log(`✅ Deducted free quota: ${quotaId}`)
         }
 
       } catch (dbError: any) {
-        console.error('数据库操作失败:', dbError)
-        // 继续执行，不中断用户请求
+        console.error('Database operation failed:', dbError)
+        // Continue execution, do not interrupt user request
       }
     }
 
     // ============================================
-    // 5. 调用背景移除 API
+    // 5. Call background removal API
     // ============================================
     const { createImageRemoverService } = await import('@/lib/bg-remover')
     const service = createImageRemoverService()
@@ -164,9 +180,9 @@ export async function POST(request: NextRequest) {
     const result = await service.removeBackground(image)
 
     // ============================================
-    // 6. 记录使用日志
+    // 6. Log usage
     // ============================================
-    if (DB) {
+    if (DB && dbUserId) {
       try {
         const providerInfo = service.getProviderInfo()
 
@@ -174,122 +190,58 @@ export async function POST(request: NextRequest) {
           INSERT INTO usage_logs (user_id, quota_id, api_provider, cost)
           VALUES (?, ?, ?, ?)
         `).bind(
-          userId,
-          null, // quotaId 可能为 null
-          providerInfo.type,
-          0.05  // remove.bg 成本
+          dbUserId,
+          null, // quotaId
+          providerInfo.name,
+          providerInfo.costPerCall
         ).run()
 
-        console.log(`✅ 记录使用日志：${userId} (${providerInfo.name})`)
-      } catch (dbError: any) {
-        console.error('记录使用日志失败:', dbError)
+        console.log(`✅ Usage logged: user ${dbUserId}, provider ${providerInfo.name}`)
+      } catch (logError: any) {
+        console.error('Failed to log usage:', logError)
+        // Continue execution, do not affect user
       }
     }
 
     // ============================================
-    // 7. 更新限流计数
+    // 7. Update rate limiting counters
     // ============================================
-    if (DB) {
+    if (DB && dbUserId) {
       try {
-        const now = new Date().toISOString()
-        const windowStart = new Date(Date.now() - 60000).toISOString()
+        const now = new Date()
+        const windowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), 0)
 
-        // 更新用户限流
+        // Update user rate limit
         await DB.prepare(`
           INSERT INTO rate_limits (user_id, ip_address, request_count, window_start)
           VALUES (?, ?, 1, ?)
-          ON CONFLICT(user_id, window_start) DO UPDATE SET
+          ON CONFLICT(user_id, ip_address, window_start) DO UPDATE SET
             request_count = request_count + 1
-        `).bind(userId, ip, now).run()
+        `).bind(dbUserId, ip, windowStart.toISOString()).run()
 
-        // 更新 IP 限流
-        await DB.prepare(`
-          INSERT INTO rate_limits (user_id, ip_address, request_count, window_start)
-          VALUES (?, ?, 1, ?)
-          ON CONFLICT(ip_address, window_start) DO UPDATE SET
-            request_count = request_count + 1
-        `).bind(userId, ip, now).run()
-
-        // 清理过期的限流记录
-        await DB.prepare(`
-          DELETE FROM rate_limits WHERE window_start < ?
-        `).bind(windowStart).run()
-      } catch (dbError: any) {
-        console.error('更新限流计数失败:', dbError)
+        console.log(`✅ Rate limit updated: user ${dbUserId}`)
+      } catch (rateError: any) {
+        console.error('Failed to update rate limit:', rateError)
+        // Continue execution, do not affect user
       }
     }
 
-    // 返回处理后的图片
-    return new NextResponse(result.buffer, {
-      status: 200,
-      headers: {
-        'Content-Type': result.contentType,
-        'X-Provider': service.getProviderInfo().name,
+    // Return result
+    return NextResponse.json({
+      success: true,
+      data: {
+        imageUrl: result.imageUrl,
+        provider: result.provider,
       },
+      message: 'Background removed successfully'
     })
+
   } catch (error: any) {
-    console.error('Error:', error)
+    console.error('Background removal failed:', error)
 
-    // 根据错误类型返回不同的状态码
-    if (error.message.includes('API 配额已用完')) {
-      return NextResponse.json({ error: error.message }, { status: 402 })
-    }
-    if (error.message.includes('API Key 无效')) {
-      return NextResponse.json({ error: error.message }, { status: 403 })
-    }
-    if (error.message.includes('API 请求频率超限')) {
-      return NextResponse.json({ error: error.message }, { status: 429 })
-    }
-
-    return NextResponse.json({
-      error: error.message || '服务器错误'
-    }, { status: 500 })
-  }
-}
-
-export async function GET(request: NextRequest) {
-  // 查询用户配额
-  const token = request.cookies.get('auth_token')?.value
-  if (!token) {
-    return NextResponse.json({ 
-      success: false,
-      data: { prepaid: 0, free: 0, total: 0 }
-    }, { status: 401 })
-  }
-
-  const decoded = JSON.parse(Buffer.from(token, 'base64').toString())
-  const userId = decoded.userId
-
-  const DB = (process.env as any).DB
-
-  if (!DB) {
-    return NextResponse.json({
-      success: true,
-      data: { prepaid: 0, free: 0, total: 0 },
-      message: 'D1 数据库未配置'
-    })
-  }
-
-  try {
-    const quota = await DB.prepare(`
-      SELECT
-        (SELECT COALESCE(SUM(total - used), 0) FROM user_quota WHERE user_id = ? AND quota_type = 2) as prepaid,
-        (SELECT COALESCE(total - used, 0) FROM user_quota WHERE user_id = ? AND quota_type = 1 ORDER BY created_at DESC LIMIT 1) as free
-    `).bind(userId, userId).first() as { prepaid: number, free: number } | null
-
-    const prepaid = quota?.prepaid || 0
-    const free = quota?.free || 0
-    const total = prepaid + free
-
-    return NextResponse.json({
-      success: true,
-      data: { prepaid, free, total }
-    })
-  } catch (error: any) {
-    console.error('查询配额失败:', error)
     return NextResponse.json({
       success: false,
-      error: error.message
+      error: error.message || 'Server error'
     }, { status: 500 })
   }
 }

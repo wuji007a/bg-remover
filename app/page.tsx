@@ -5,7 +5,7 @@ import { Package, ShoppingCart, X } from 'lucide-react'
 import QuotaBadge from '@/components/quota-badge'
 import QuotaModal from '@/components/quota-modal'
 
-// Google OAuth 配置（从环境变量读取，或使用默认值）
+// Google OAuth configuration (read from environment variables, or use default values)
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '1006021607677-s5p3qn6jbfe72faj4q4tioro7fdgfv7s.apps.googleusercontent.com';
 const GOOGLE_REDIRECT_URI = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI || 'https://bg-remover-6dp.pages.dev/api/auth/callback';
 
@@ -18,7 +18,7 @@ export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false)
 
-  // 初始化时检查登录状态
+  // Check login status on initialization
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -30,14 +30,14 @@ export default function Home() {
           }
         }
       } catch (err) {
-        console.error('检查登录状态失败:', err);
+        console.error('Failed to check login status:', err);
       }
     };
 
     checkAuth();
   }, []);
 
-  // 处理 Google 登录
+  // Handle Google login
   const handleGoogleLogin = () => {
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${GOOGLE_CLIENT_ID}&` +
@@ -49,18 +49,18 @@ export default function Home() {
   };
 
   const handleLogout = () => {
-    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan1970 00:00:00 GMT';
     setUser(null);
   };
 
   const handleFile = useCallback(async (file: File) => {
-    // 检查配额
+    // Check quota
     try {
       const quotaRes = await fetch('/api/quota')
       const quotaData = await quotaRes.json()
 
       if (quotaData.success && quotaData.data.total === 0) {
-        // 配额不足，显示弹窗
+        // Insufficient quota, show modal
         setIsQuotaModalOpen(true)
         return
       }
@@ -68,14 +68,14 @@ export default function Home() {
       console.error('Quota check failed:', err)
     }
 
-    // 验证文件类型
+    // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!validTypes.includes(file.type)) {
       setError('Please upload JPG, PNG or WebP format image')
       return
     }
 
-    // 验证文件大小 (10MB)
+    // Validate file size (10MB)
     if (file.size > 10 * 1024 * 1024) {
       setError('Image size cannot exceed 10MB')
       return
@@ -85,14 +85,14 @@ export default function Home() {
     setResultImage(null)
     setLoading(true)
 
-    // 显示原图预览
+    // Show original image preview
     const reader = new FileReader()
     reader.onload = () => {
       setOriginalImage(reader.result as string)
     }
     reader.readAsDataURL(file)
 
-    // 调用 API
+    // Call API
     try {
       const formData = new FormData()
       formData.append('image', file)
@@ -157,7 +157,7 @@ export default function Home() {
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
-      {/* 标题和用户信息 */}
+      {/* Header and user info */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -178,7 +178,7 @@ export default function Home() {
             )}
           </div>
 
-          {/* 用户登录/退出 */}
+          {/* User login/logout */}
           {user ? (
             <div className="flex items-center gap-4">
               <img
@@ -196,10 +196,10 @@ export default function Home() {
             </div>
           ) : null}
         </div>
-        <p className="text-gray-600 text-center">一键去除图片背景，快速且免费</p>
+        <p className="text-gray-600 text-center">One-click background removal, fast and free</p>
       </div>
 
-      {/* 登录后显示 Google 登录按钮 */}
+      {/* Show Google login button after login prompt */}
       {!user && (
         <div className="flex justify-center mb-8">
           <button
@@ -223,7 +223,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* 上传区域 */}
+      {/* Upload area */}
       {user && !originalImage && (
         <div
           onDrop={handleDrop}
@@ -256,14 +256,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* 错误提示 */}
+      {/* Error message */}
       {error && (
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-center">
           ❌ {error}
         </div>
       )}
 
-      {/* 处理中状态 */}
+      {/* Processing state */}
       {loading && (
         <div className="mt-8 text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
@@ -271,11 +271,11 @@ export default function Home() {
         </div>
       )}
 
-      {/* 结果预览 */}
+      {/* Result preview */}
       {originalImage && !loading && (
         <div className="mt-8">
           <div className="grid md:grid-cols-2 gap-6">
-            {/* 原图 */}
+            {/* Original image */}
             <div>
               <h3 className="text-lg font-medium text-gray-700 mb-2">Original Image</h3>
               <div className="bg-white rounded-xl p-4 shadow-sm border">
@@ -295,7 +295,7 @@ export default function Home() {
                   <div className="checkerboard rounded-lg">
                     <img
                       src={resultImage}
-                      alt="结果"
+                      alt="Result"
                       className="w-full h-auto rounded-lg"
                     />
                   </div>
@@ -308,7 +308,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 操作按钮 */}
+          {/* Action buttons */}
           <div className="mt-6 flex justify-center gap-4">
             <button
               onClick={handleDownload}
@@ -333,13 +333,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* 配额不足弹窗 */}
+      {/* Insufficient quota modal */}
       <QuotaModal
         isOpen={isQuotaModalOpen}
         onClose={() => setIsQuotaModalOpen(false)}
       />
 
-      {/* 页脚 */}
+      {/* Footer */}
       <footer className="mt-16 text-center text-gray-400 text-sm">
         Powered by ClipDrop API • Made with Next.js
       </footer>
