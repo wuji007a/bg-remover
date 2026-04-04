@@ -10,10 +10,11 @@ export const dynamic = 'force-dynamic'
  * 1. Check user login status
  * 2. Check user-level rate limiting (max 5 requests per minute)
  * 3. Check IP-level rate limiting (max 10 requests per minute)
- * 4. Check and deduct user quota
- * 5. Call background removal API
- * 6. Log usage
- * 7. Update rate limiting counters
+ * 4. Check user quota
+ * 5. Call background removal API (FIRST)
+ * 6. Deduct quota AFTER successful API call
+ * 7. Log usage
+ * 8. Update rate limiting counters
  */
 export async function POST(request: NextRequest) {
   try {
@@ -126,10 +127,50 @@ export async function POST(request: NextRequest) {
           }, { status: 402 })
         }
 
-        // ============================================
-        // 4. Deduct quota (deduct purchased quota first)
-        // ============================================
-        let quotaId: number | null = null
+        console.log(`✅ Quota check passed: prepaid=${prepaid}, free=${free}, total=${total}`)
+      } catch (dbError: any) {
+        console.error('Database operation failed:', dbError)
+        // Continue execution, do not interrupt user request
+      }
+    }
+
+    // ============================================
+    // 4. Call background removal API (FIRST)
+    // ============================================
+    console.log('\n🎨 Calling background removal API...')
+
+    const { createImageRemoverService } = await import('@/lib/bg-remover')
+    const service = createImageRemoverService()
+
+    let result: any
+    try {
+      result = await service.removeBackground(image)
+      console.log('✅ Background removal API call succeeded')
+    } catch (apiError: any) {
+      console.error('❌ Background removal API call failed:', apiError.message)
+      
+      // Return error immediately (quota NOT deducted yet)
+      return NextResponse.json({
+        success: false,
+        error: apiError.message || 'Background removal API error'
+      }, { status: 500 })
+    }
+
+    // ============================================
+    // 5. Deduct quota (AFTER successful API call)
+    // ============================================
+    let quotaId: number | null = null
+
+    if (DB && dbUserId) {
+      try {
+        const quotaCheck = await DB.prepare(`
+          SELECT
+            (SELECT COALESCE(SUM(total - used), 0) FROM user_quota WHERE user_id = ? AND quota_type = 2) as prepaid,
+            (SELECT COALESCE(total - used, 0) FROM user_quota WHERE user_id = ? AND quota_type = 1 ORDER BY created_at DESC LIMIT 1) as free
+        `).bind(dbUserId, dbUserId).first() as { prepaid: number, free: number } | null
+
+        const prepaid = quotaCheck?.prepaid || 0
+        const free = quotaCheck?.free || 0
 
         if (prepaid > 0) {
           // Deduct purchased quota
@@ -165,38 +206,25 @@ export async function POST(request: NextRequest) {
           console.log(`✅ Deducted free quota: ${quotaId}`)
         }
 
-      } catch (dbError: any) {
-        console.error('Database operation failed:', dbError)
-        // Continue execution, do not interrupt user request
+      } catch (quotaError: any) {
+        console.error('❌ Failed to deduct quota:', quotaError)
+        // Continue execution, return result even if quota deduction fails
       }
     }
-
-    // ============================================
-    // 5. Call background removal API
-    // ============================================
-    const { createImageRemoverService } = await import('@/lib/bg-remover')
-    const service = createImageRemoverService()
-
-    const result = await service.removeBackground(image)
-
-    // Convert buffer to blob and create URL
-    const blob = new Blob([result.buffer], { type: result.contentType })
-    const imageUrl = URL.createObjectURL(blob)
-
-    // Get provider info
-    const providerInfo = service.getProviderInfo()
 
     // ============================================
     // 6. Log usage
     // ============================================
     if (DB && dbUserId) {
       try {
+        const providerInfo = service.getProviderInfo()
+
         await DB.prepare(`
           INSERT INTO usage_logs (user_id, quota_id, api_provider, cost)
           VALUES (?, ?, ?, ?)
         `).bind(
           dbUserId,
-          null, // quotaId
+          quotaId,
           providerInfo.name,
           providerInfo.cost
         ).run()
@@ -231,7 +259,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Return result
+    // ============================================
+    // 8. Return result
+    // ============================================
+    // Convert buffer to blob and create URL
+    const blob = new Blob([result.buffer], { type: result.contentType })
+    const imageUrl = URL.createObjectURL(blob)
+
+    // Get provider info
+    const providerInfo = service.getProviderInfo()
+
+    console.log('✅ Request completed successfully')
+
     return NextResponse.json({
       success: true,
       data: {
@@ -242,7 +281,13 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Background removal failed:', error)
+    console.error('\n========================================')
+    console.error('❌ Background removal failed')
+    console.error('========================================\n')
+    console.error('  - Error name:', error.name)
+    console.error('  - Error message:', error.message)
+    console.error('  - Error stack:', error.stack)
+    console.error('========================================\n')
 
     return NextResponse.json({
       success: false,
