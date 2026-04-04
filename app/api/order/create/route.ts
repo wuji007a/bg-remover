@@ -43,8 +43,24 @@ export async function POST(request: NextRequest) {
     }
 
     // 解码 token 获取用户 ID
-    const decoded = JSON.parse(Buffer.from(token, 'base64').toString())
+    let decoded: any
+    try {
+      decoded = JSON.parse(Buffer.from(token, 'base64').toString())
+    } catch (e) {
+      console.error('Token decode error:', e)
+      decoded = null
+    }
+
+    if (!decoded || !decoded.userId) {
+      return NextResponse.json({
+        success: false,
+        error: '无效的登录状态，请重新登录',
+        needLogin: true
+      }, { status: 401 })
+    }
+
     const userId = decoded.userId
+    console.log(`🔍 用户 ID：${userId}`)
 
     // 获取 D1 数据库实例
     const DB = (process.env as any).DB
