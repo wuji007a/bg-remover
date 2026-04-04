@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
           dbUserId,
           null, // quotaId
           providerInfo.name,
-          providerInfo.costPerCall
+          providerInfo.cost
         ).run()
 
         console.log(`✅ Usage logged: user ${dbUserId}, provider ${providerInfo.name}`)
