@@ -25,14 +25,14 @@ export default function PricingPage() {
     setLoading(true)
     try {
       const mockProducts: Product[] = [
-        { id: 1, name: '单次购买', quota_count: 1, price: 0.5, cost: 0.05, sort_order: 1 },
-        { id: 2, name: '10次优惠包', quota_count: 10, price: 4.0, cost: 0.50, sort_order: 2 },
-        { id: 3, name: '50次超值包', quota_count: 50, price: 15.0, cost: 2.50, sort_order: 3 },
+        { id: 1, name: 'Single Purchase', quota_count: 1, price: 0.5, cost: 0.05, sort_order: 1 },
+        { id: 2, name: '10-Pack', quota_count: 10, price: 4.0, cost: 0.50, sort_order: 2 },
+        { id: 3, name: '50-Pack', quota_count: 50, price: 15.0, cost: 2.50, sort_order: 3 },
       ]
       setProducts(mockProducts)
       setSelectedProductId(2)
     } catch (error) {
-      console.error('获取产品失败:', error)
+      console.error('Failed to fetch products:', error)
     } finally {
       setLoading(false)
     }
@@ -54,13 +54,18 @@ export default function PricingPage() {
       const data = await res.json()
 
       if (data.success) {
-        alert('订单创建成功！订单号：' + data.data.orderNo)
+        // 跳转到 PayPal 支付页面
+        if (data.data.paymentLink) {
+          window.location.href = data.data.paymentLink
+        } else {
+          alert('Order created successfully, but payment link is missing. Order No: ' + data.data.orderNo)
+        }
       } else {
-        alert('创建订单失败：' + data.error)
+        alert('Failed to create order: ' + data.error)
       }
     } catch (error) {
-      console.error('创建订单失败:', error)
-      alert('创建订单失败，请稍后重试')
+      console.error('Failed to create order:', error)
+      alert('Failed to create order, please try again later')
     }
   }
 
@@ -76,7 +81,7 @@ export default function PricingPage() {
             href="/"
             className="text-gray-600 hover:text-gray-800 transition-colors font-medium"
           >
-            返回首页
+            Back to Home
           </a>
         </div>
       </header>
@@ -84,15 +89,15 @@ export default function PricingPage() {
       <main className="max-w-6xl mx-auto px-4 py-12">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            选择您的套餐
+            Choose Your Plan
           </h2>
           <p className="text-lg text-gray-600">
-            简单透明的定价，无隐藏费用
+            Simple and transparent pricing, no hidden fees
           </p>
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-gray-500">加载中...</div>
+          <div className="text-center py-12 text-gray-500">Loading...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
             {products.map((product) => (
@@ -128,7 +133,7 @@ export default function PricingPage() {
                   <div className="mt-3 flex items-center justify-center gap-1">
                     <Package className="w-5 h-5" />
                     <span className="text-lg font-medium">
-                      {product.quota_count} 次
+                      {product.quota_count} times
                     </span>
                   </div>
                 </div>
@@ -136,7 +141,7 @@ export default function PricingPage() {
                 <div className="p-6">
                   <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                     <div className="text-sm text-gray-600">
-                      单次价格：
+                      Price per use:
                       <span className="font-semibold text-gray-900">
                         ¥{(product.price / product.quota_count).toFixed(2)}
                       </span>
@@ -147,25 +152,25 @@ export default function PricingPage() {
                     <li className="flex items-start gap-2">
                       <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                       <span className="text-gray-700">
-                        套餐永久有效，不限使用期限
+                        Packages are valid forever, no expiration
                       </span>
                     </li>
                     <li className="flex items-start gap-2">
                       <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                       <span className="text-gray-700">
-                        高质量 AI 背景移除
+                        High-quality AI background removal
                       </span>
                     </li>
                     <li className="flex items-start gap-2">
                       <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                       <span className="text-gray-700">
-                        支持多种图片格式
+                        Supports multiple image formats
                       </span>
                     </li>
                     <li className="flex items-start gap-2">
                       <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                       <span className="text-gray-700">
-                        快速处理，秒出结果
+                        Fast processing, instant results
                       </span>
                     </li>
                   </ul>
@@ -181,7 +186,7 @@ export default function PricingPage() {
                       }
                     `}
                   >
-                    立即购买
+                    Buy Now
                   </button>
                 </div>
               </div>
@@ -195,10 +200,10 @@ export default function PricingPage() {
               <Tag className="w-6 h-6 text-orange-600 flex-shrink-0" />
               <div>
                 <h4 className="font-semibold text-orange-900 mb-2">
-                  💡 新用户福利
+                  💡 New User Bonus
                 </h4>
                 <p className="text-sm text-orange-800">
-                  注册即送 3 次免费额度，永久有效！立即体验高质量 AI 背景移除服务。
+                  Sign up now and get 3 free credits, valid forever! Experience high-quality AI background removal service immediately.
                 </p>
               </div>
             </div>
@@ -209,10 +214,10 @@ export default function PricingPage() {
               <Shield className="w-6 h-6 text-green-600 flex-shrink-0" />
               <div>
                 <h4 className="font-semibold text-green-900 mb-2">
-                  🔒 安全保障
+                  🔒 Secure Payment
                 </h4>
                 <p className="text-sm text-green-800">
-                  我们采用 Google OAuth 登录，确保您的账户安全。支付通过 PayPal 完成，支持退款。
+                  We use Google OAuth for login to ensure your account security. Payment is processed through PayPal, with refund support.
                 </p>
               </div>
             </div>
@@ -223,10 +228,10 @@ export default function PricingPage() {
       <footer className="mt-12 border-t border-gray-200 pt-8">
         <div className="text-center text-sm text-gray-600">
           <p className="mb-2">
-            所有套餐均为一次性付费，无月费，无订阅费
+            All packages are one-time payments, no monthly fees, no subscription fees
           </p>
           <p>
-            如有疑问，请访问{' '}
+            For questions, please visit{' '}
             <a
               href="https://github.com/wuji007a/bg-remover/issues"
               target="_blank"
@@ -235,7 +240,7 @@ export default function PricingPage() {
             >
               GitHub Issues
             </a>{' '}
-            联系我们
+            to contact us
           </p>
         </div>
       </footer>

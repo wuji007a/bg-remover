@@ -65,19 +65,19 @@ export default function Home() {
         return
       }
     } catch (err) {
-      console.error('检查配额失败:', err)
+      console.error('Quota check failed:', err)
     }
 
     // 验证文件类型
     const validTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!validTypes.includes(file.type)) {
-      setError('请上传 JPG、PNG 或 WebP 格式的图片')
+      setError('Please upload JPG, PNG or WebP format image')
       return
     }
 
     // 验证文件大小 (10MB)
     if (file.size > 10 * 1024 * 1024) {
-      setError('图片大小不能超过 10MB')
+      setError('Image size cannot exceed 10MB')
       return
     }
 
@@ -104,14 +104,14 @@ export default function Home() {
 
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error || '处理失败')
+        throw new Error(data.error || 'Processing failed')
       }
 
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       setResultImage(url)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '处理失败，请重试')
+      setError(err instanceof Error ? err.message : 'Processing failed, please try again')
     } finally {
       setLoading(false)
     }
@@ -172,7 +172,7 @@ export default function Home() {
                   className="flex items-center gap-1 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium"
                 >
                   <ShoppingCart className="w-4 h-4" />
-                  <span>购买套餐</span>
+                  <span>Packages</span>
                 </a>
               </div>
             )}
@@ -191,7 +191,7 @@ export default function Home() {
                 onClick={handleLogout}
                 className="text-sm text-red-600 hover:text-red-700"
               >
-                退出
+                Logout
               </button>
             </div>
           ) : null}
@@ -211,15 +211,15 @@ export default function Home() {
               alt="Google"
               className="w-5 h-5"
             />
-            <span className="text-gray-700 font-medium">使用 Google 登录</span>
+            <span className="text-gray-700 font-medium">Sign in with Google</span>
           </button>
         </div>
       )}
 
-      {/* 提示：未登录无法使用 */}
+      {/* Prompt: Login required */}
       {!user && (
         <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-8">
-          <p className="text-yellow-800">🔐 请先登录以使用去背景功能</p>
+          <p className="text-yellow-800">🔐 Please login to use the background removal feature</p>
         </div>
       )}
 
@@ -241,10 +241,10 @@ export default function Home() {
         >
           <div className="text-6xl mb-4">📤</div>
           <p className="text-xl text-gray-600 mb-2">
-            拖拽图片到这里，或点击上传
+            Drag & drop an image here, or click to upload
           </p>
           <p className="text-sm text-gray-400">
-            支持 JPG、PNG、WebP，最大 10MB
+            Supports JPG, PNG, WebP, max 10MB
           </p>
           <input
             id="fileInput"
@@ -267,7 +267,7 @@ export default function Home() {
       {loading && (
         <div className="mt-8 text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-          <p className="mt-4 text-gray-600">正在去除背景...</p>
+          <p className="mt-4 text-gray-600">Removing background...</p>
         </div>
       )}
 
@@ -277,19 +277,19 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-6">
             {/* 原图 */}
             <div>
-              <h3 className="text-lg font-medium text-gray-700 mb-2">原图</h3>
+              <h3 className="text-lg font-medium text-gray-700 mb-2">Original Image</h3>
               <div className="bg-white rounded-xl p-4 shadow-sm border">
                 <img
                   src={originalImage}
-                  alt="原图"
+                  alt="Original Image"
                   className="w-full h-auto rounded-lg"
                 />
               </div>
             </div>
 
-            {/* 结果图 */}
+            {/* Result */}
             <div>
-              <h3 className="text-lg font-medium text-gray-700 mb-2">去背景结果</h3>
+              <h3 className="text-lg font-medium text-gray-700 mb-2">Background Removed</h3>
               <div className="bg-white rounded-xl p-4 shadow-sm border">
                 {resultImage ? (
                   <div className="checkerboard rounded-lg">
@@ -301,7 +301,7 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="h-48 flex items-center justify-center text-gray-400">
-                    等待处理...
+                    Processing...
                   </div>
                 )}
               </div>
@@ -321,13 +321,13 @@ export default function Home() {
                 }
               `}
             >
-              📥 下载 PNG
+              📥 Download PNG
             </button>
             <button
               onClick={handleReset}
               className="px-6 py-3 rounded-lg font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all"
             >
-              🔄 重新上传
+              🔄 Upload New
             </button>
           </div>
         </div>

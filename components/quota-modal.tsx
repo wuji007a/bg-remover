@@ -30,16 +30,16 @@ export default function QuotaModal({ isOpen, onClose }: QuotaModalProps) {
   const fetchProducts = async () => {
     setLoading(true)
     try {
-      // 从数据库获取产品信息（这里暂时硬编码，实际应该从 API 获取）
+      // Fetch product information from database (temporarily hardcoded, should be fetched from API)
       const mockProducts: Product[] = [
-        { id: 1, name: '单次购买', quota_count: 1, price: 0.5, sort_order: 1 },
-        { id: 2, name: '10次优惠包', quota_count: 10, price: 4.0, sort_order: 2 },
-        { id: 3, name: '50次超值包', quota_count: 50, price: 15.0, sort_order: 3 },
+        { id: 1, name: 'Single Purchase', quota_count: 1, price: 0.5, sort_order: 1 },
+        { id: 2, name: '10-Pack', quota_count: 10, price: 4.0, sort_order: 2 },
+        { id: 3, name: '50-Pack', quota_count: 50, price: 15.0, sort_order: 3 },
       ]
       setProducts(mockProducts)
-      setSelectedProductId(2) // 默认选择 10 次包
+      setSelectedProductId(2) // Default to 10-Pack
     } catch (error) {
-      console.error('获取产品失败:', error)
+      console.error('Failed to fetch products:', error)
     } finally {
       setLoading(false)
     }
@@ -61,16 +61,16 @@ export default function QuotaModal({ isOpen, onClose }: QuotaModalProps) {
       const data = await res.json()
 
       if (data.success) {
-        // 跳转到 PayPal 支付页面
-        // TODO: 实际跳转到 PayPal
-        alert('订单创建成功！订单号：' + data.data.orderNo)
+        // Redirect to PayPal payment page
+        // TODO: Actual PayPal redirect
+        alert('Order created successfully! Order No: ' + data.data.orderNo)
         onClose()
       } else {
-        alert('创建订单失败：' + data.error)
+        alert('Failed to create order: ' + data.error)
       }
     } catch (error) {
-      console.error('创建订单失败:', error)
-      alert('创建订单失败，请稍后重试')
+      console.error('Failed to create order:', error)
+      alert('Failed to create order, please try again later')
     }
   }
 
@@ -79,13 +79,13 @@ export default function QuotaModal({ isOpen, onClose }: QuotaModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
-        {/* 头部 */}
+        {/* Header */}
         <div className="bg-gradient-to-r from-orange-500 to-red-500 px-6 py-8 text-white">
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-2xl font-bold mb-2">配额不足</h2>
+              <h2 className="text-2xl font-bold mb-2">Quota Exhausted</h2>
               <p className="text-orange-100">
-                您的配额已用完，选择一个套餐继续使用
+                Your quota has been used up. Select a plan to continue using
               </p>
             </div>
             <button
@@ -97,10 +97,10 @@ export default function QuotaModal({ isOpen, onClose }: QuotaModalProps) {
           </div>
         </div>
 
-        {/* 内容 */}
+        {/* Content */}
         <div className="p-6">
           {loading ? (
-            <div className="text-center py-12 text-gray-500">加载中...</div>
+            <div className="text-center py-12 text-gray-500">Loading...</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {products.map((product) => (
@@ -129,13 +129,13 @@ export default function QuotaModal({ isOpen, onClose }: QuotaModalProps) {
                     <div className="flex items-center justify-center gap-1 text-gray-600 mb-4">
                       <Package className="w-4 h-4" />
                       <span className="text-lg font-medium">
-                        {product.quota_count} 次
+                        {product.quota_count} times
                       </span>
                     </div>
 
-                    {/* 显示单次价格 */}
+                    {/* Show price per use */}
                     <div className="text-sm text-gray-500">
-                      ¥{(product.price / product.quota_count).toFixed(2)} / 次
+                      ¥{(product.price / product.quota_count).toFixed(2)} / use
                     </div>
                   </div>
                 </div>
@@ -143,30 +143,30 @@ export default function QuotaModal({ isOpen, onClose }: QuotaModalProps) {
             </div>
           )}
 
-          {/* 提示信息 */}
+          {/* Hint */}
           <div className="mt-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
             <p className="text-sm text-orange-800">
-              <span className="font-semibold">💡 提示：</span>
-              套餐永久有效，不限使用期限。推荐购买 10 次或 50 次套餐，享受更多优惠！
+              <span className="font-semibold">💡 Tip:</span>
+              Packages are valid forever with no expiration. We recommend purchasing the 10-Pack or 50-Pack for more savings!
             </p>
           </div>
         </div>
 
-        {/* 底部按钮 */}
+        {/* Footer Buttons */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
           <div className="flex gap-3">
             <button
               onClick={onClose}
               className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium"
             >
-              稍后再说
+              Maybe Later
             </button>
             <button
               onClick={() => selectedProductId && handlePurchase(selectedProductId)}
               disabled={!selectedProductId}
               className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              <span>立即购买</span>
+              <span>Buy Now</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

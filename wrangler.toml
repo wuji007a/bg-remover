@@ -31,6 +31,16 @@ NEXT_PUBLIC_GOOGLE_REDIRECT_URI = "https://bg-remover-6dp.pages.dev/api/auth/cal
 # 注意：GOOGLE_CLIENT_SECRET 需要在 Cloudflare Pages 环境变量中配置（敏感信息）
 
 # ----------------------------------------
+# PayPal 支付配置
+# ----------------------------------------
+PAYPAL_CLIENT_ID = "AYOsBGr8P3Yt4DRCiEXkO92MMcXSu91LFKsKZoKzL4jfD39E1EMdY-vp2nvwaoXjQUNgETUf0WG826hk"
+PAYPAL_MODE = "sandbox"  # 选项: sandbox, production
+PAYPAL_WEBHOOK_ID = "71P08758JG9218449"
+NEXT_PUBLIC_PAYPAL_CLIENT_ID = "AYOsBGr8P3Yt4DRCiEXkO92MMcXSu91LFKsKZoKzL4jfD39E1EMdY-vp2nvwaoXjQUNgETUf0WG826hk"
+NEXT_PUBLIC_PAYPAL_MODE = "sandbox"
+# 注意：PAYPAL_CLIENT_SECRET 需要在 Cloudflare Pages 环境变量中配置（敏感信息）
+
+# ----------------------------------------
 # 用量控制配置
 # ----------------------------------------
 RATE_LIMIT_USER_PER_MINUTE = 5

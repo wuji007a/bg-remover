@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createPayPalOrder, getPayPalConfig } from '@/lib/paypal'
 
 export const runtime = 'edge'
 export const dynamic = 'force-dynamic'
@@ -12,9 +13,10 @@ export const dynamic = 'force-dynamic'
  * 3. 检查支付方式
  * 4. 创建订单记录
  * 5. 生成订单号
+ * 6. 创建支付订单（PayPal）
  *
  * 支持的支付方式：
- * - paypal（即将上线）
+ * - paypal（已上线）
  * - wechat（暂未接入）
  * - alipay（暂未接入）
  */
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
     // 2. 检查支付方式
     // ============================================
     const availableMethods = {
-      'paypal': { enabled: false, name: 'PayPal', note: '即将上线' },
+      'paypal': { enabled: true, name: 'PayPal', note: '已上线' },
       'wechat': { enabled: false, name: '微信支付', note: '暂未接入' },
       'alipay': { enabled: false, name: '支付宝', note: '暂未接入' }
     }
@@ -131,7 +133,65 @@ export async function POST(request: NextRequest) {
     console.log(`✅ 订单创建成功：${orderNo}（¥${product.price}，${product.quota_count}次）`)
 
     // ============================================
-    // 5. 返回订单信息
+    // 5. 创建支付订单（PayPal）
+    // ============================================
+    let paymentData: any = null
+
+    if (paymentMethod === 'paypal') {
+      try {
+        const paypalConfig = getPayPalConfig()
+        const paypalOrder = await createPayPalOrder(
+          paypalConfig,
+          orderNo,
+          product.price
+        )
+
+        if (!paypalOrder.success) {
+          // PayPal 订单创建失败，回滚本地订单
+          await DB.prepare(`
+            DELETE FROM orders WHERE order_no = ?
+          `).bind(orderNo).run()
+
+          return NextResponse.json({
+            success: false,
+            error: 'PayPal 订单创建失败',
+            details: paypalOrder.error
+          }, { status: 500 })
+        }
+
+        paymentData = {
+          paypalOrderId: paypalOrder.orderId,
+          paymentLink: paypalOrder.paymentLink,
+          amount: paypalOrder.amount,
+          currency: paypalOrder.currency,
+        }
+
+        // 更新订单表，记录 PayPal 订单 ID
+        await DB.prepare(`
+          UPDATE orders
+          SET payment_provider_order_id = ?
+          WHERE order_no = ?
+        `).bind(paypalOrder.orderId, orderNo).run()
+
+        console.log(`✅ PayPal 订单创建成功：${paypalOrder.orderId}`)
+      } catch (error: any) {
+        console.error('PayPal integration error:', error)
+
+        // PayPal 集成失败，回滚本地订单
+        await DB.prepare(`
+          DELETE FROM orders WHERE order_no = ?
+        `).bind(orderNo).run()
+
+        return NextResponse.json({
+          success: false,
+          error: 'PayPal 集成失败',
+          details: error.message
+        }, { status: 500 })
+      }
+    }
+
+    // ============================================
+    // 6. 返回订单信息
     // ============================================
     return NextResponse.json({
       success: true,
@@ -144,7 +204,8 @@ export async function POST(request: NextRequest) {
         paymentMethod,
         paymentProvider: paymentMethod,
         status: 0, // 0=待支付
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        ...paymentData,
       },
       message: '订单创建成功'
     })

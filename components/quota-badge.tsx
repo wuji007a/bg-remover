@@ -17,7 +17,7 @@ export default function QuotaBadge() {
   })
   const [loading, setLoading] = useState(true)
 
-  // 获取配额数据
+  // Fetch quota data
   useEffect(() => {
     fetchQuota()
   }, [])
@@ -31,13 +31,13 @@ export default function QuotaBadge() {
         setQuota(data.data)
       }
     } catch (error) {
-      console.error('获取配额失败:', error)
+      console.error('Failed to fetch quota:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  // 配额状态
+  // Quota status
   const isLow = quota.total <= 3 && quota.total > 0
   const isEmpty = quota.total === 0
 
@@ -56,12 +56,12 @@ export default function QuotaBadge() {
       >
         <Package className="w-4 h-4" />
         {loading ? (
-          <span>加载中...</span>
+          <span>Loading...</span>
         ) : (
           <span>
-            剩余配额：{quota.total} 次
-            {quota.prepaid > 0 && ` (${quota.prepaid}购买${quota.free > 0 ? ` + ${quota.free}免费` : ''})`}
-            {quota.prepaid === 0 && quota.free > 0 && ` (${quota.free}免费)`}
+            Remaining: {quota.total} times
+            {quota.prepaid > 0 && ` (${quota.prepaid} paid${quota.free > 0 ? ` + ${quota.free} free` : ''})`}
+            {quota.prepaid === 0 && quota.free > 0 && ` (${quota.free} free)`}
           </span>
         )}
       </div>
@@ -71,7 +71,7 @@ export default function QuotaBadge() {
           href="/pricing"
           className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 transition-colors"
         >
-          <span>购买</span>
+          <span>Buy</span>
           <ArrowDown className="w-4 h-4" />
         </a>
       )}
