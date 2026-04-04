@@ -100,12 +100,11 @@ export async function POST(request: NextRequest) {
       // ============================================
       await DB.prepare(`
         UPDATE orders
-        SET status = 1, paid_at = datetime('now'), payment_method = ?, payment_provider = ?, transaction_id = ?
+        SET status = 1, paid_at = datetime('now'), payment_method = ?, payment_provider = ?
         WHERE id = ?
       `).bind(
         paymentMethod || order.payment_method,
         paymentMethod || order.payment_provider,
-        transactionId,
         order.id
       ).run()
 
