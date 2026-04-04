@@ -179,13 +179,18 @@ export async function POST(request: NextRequest) {
 
     const result = await service.removeBackground(image)
 
+    // Convert buffer to blob and create URL
+    const blob = new Blob([result.buffer], { type: result.contentType })
+    const imageUrl = URL.createObjectURL(blob)
+
+    // Get provider info
+    const providerInfo = service.getProviderInfo()
+
     // ============================================
     // 6. Log usage
     // ============================================
     if (DB && dbUserId) {
       try {
-        const providerInfo = service.getProviderInfo()
-
         await DB.prepare(`
           INSERT INTO usage_logs (user_id, quota_id, api_provider, cost)
           VALUES (?, ?, ?, ?)
@@ -230,8 +235,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        imageUrl: result.imageUrl,
-        provider: result.provider,
+        imageUrl,
+        provider: providerInfo.name,
       },
       message: 'Background removed successfully'
     })
