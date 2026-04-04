@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       }, { status: 401 })
     }
 
-    // 解码 token 获取用户 ID（这是 Google ID）
+    // 解码 token 获取用户 ID（这是数据库 ID，整数）
     let decoded: any
     try {
       decoded = JSON.parse(Buffer.from(token, 'base64').toString())
@@ -68,9 +68,11 @@ export async function POST(request: NextRequest) {
       }, { status: 401 })
     }
 
-    const userId = decoded.userId  // 这是 Google ID（字符串）
+    const userId = decoded.userId  // 这是数据库 ID（整数）
+    const googleId = decoded.googleId  // 这是 Google ID（字符串，用于其他用途）
 
-    console.log('Google ID:', userId)
+    console.log('数据库 ID:', userId)
+    console.log('Google ID:', googleId)
 
     // 获取 D1 数据库实例
     const DB = (process.env as any).DB
@@ -83,12 +85,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================
-    // 1. 从 users 表查询真实的数据库 user_id
+    // 1. 从 users 表查询用户信息
     // ============================================
     console.log('\n📊 步骤 1: 查询用户')
 
     const user = await DB.prepare(`
-      SELECT id, email, name FROM users WHERE google_id = ?
+      SELECT id, email, name FROM users WHERE id = ?
     `).bind(userId).first() as {
       id: number
       email: string
@@ -103,12 +105,12 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    const dbUserId = user.id  // 这是真实的数据库 ID（整数）
-
     console.log('✅ 查询到用户:')
-    console.log('  - 数据库 ID:', dbUserId)
+    console.log('  - 数据库 ID:', user.id)
     console.log('  - 邮箱:', user.email)
     console.log('  - 姓名:', user.name)
+
+    const dbUserId = user.id  // 使用数据库 ID（整数）
 
     // ============================================
     // 2. 查询产品信息
