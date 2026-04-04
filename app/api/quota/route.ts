@@ -23,9 +23,9 @@ export async function GET(request: NextRequest) {
       }, { status: 401 })
     }
 
-    // 解码 token 获取用户 ID
+    // 解码 token 获取用户 ID（这是 Google ID）
     const decoded = JSON.parse(Buffer.from(token, 'base64').toString())
-    const userId = decoded.userId
+    const googleId = decoded.userId
 
     // 获取 D1 数据库实例
     const DB = (process.env as any).DB
@@ -36,6 +36,21 @@ export async function GET(request: NextRequest) {
         error: 'D1 数据库未配置'
       }, { status: 500 })
     }
+
+    // 通过 Google ID 查询数据库 ID
+    const user = await DB.prepare(`
+      SELECT id FROM users WHERE google_id = ?
+    `).bind(googleId).first() as { id: number } | null
+
+    if (!user) {
+      return NextResponse.json({
+        success: false,
+        error: '用户不存在，请重新登录',
+        needLogin: true
+      }, { status: 404 })
+    }
+
+    const userId = user.id  // 数据库 ID（整数）
 
     // 查询配额
     const quota = await DB.prepare(`

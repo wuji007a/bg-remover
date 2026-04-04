@@ -149,15 +149,13 @@ export async function GET(req: NextRequest) {
       } catch (dbError: any) {
         console.error('数据库操作失败:', dbError)
         // 继续执行，不影响用户登录
-        userId = null
       }
     }
 
-    // 生成 session token（存储数据库 ID，而不是 Google ID）
+    // 生成 session token（存储 Google ID，而不是数据库 ID）
     const sessionToken = Buffer.from(
       JSON.stringify({
-        userId: userId,  // 使用数据库 ID
-        googleId: payload.sub,  // Google ID（保留用于其他用途）
+        userId: payload.sub,  // Google ID（字符串）
         email: payload.email,
         name: payload.name,
         picture: payload.picture,
