@@ -1,5 +1,5 @@
 /**
- * PayPal Payment Integration
+ * PayPal Payment Integration (使用原生 fetch，兼容 Cloudflare Edge Runtime)
  *
  * 功能：
  * - 创建订单
@@ -7,8 +7,6 @@
  * - 验证 Webhook
  * - 处理支付回调
  */
-
-import { Client, Environment, OrdersController, CheckoutPaymentIntent } from '@paypal/paypal-server-sdk'
 
 /**
  * PayPal 配置
@@ -20,25 +18,44 @@ export interface PayPalConfig {
 }
 
 /**
- * 创建 PayPal 客户端
+ * PayPal 环境配置
  */
-export function createPayPalClient(config: PayPalConfig) {
-  console.log('🔧 创建 PayPal 客户端...')
-  console.log('  - Client ID:', config.clientId?.substring(0, 20) + '...')
-  console.log('  - Client Secret:', config.clientSecret?.substring(0, 20) + '...')
-  console.log('  - Mode:', config.mode)
+const PAYPAL_BASE_URLS = {
+  sandbox: 'https://api-m.sandbox.paypal.com',
+  production: 'https://api-m.paypal.com'
+}
 
-  const paypalClient = new Client({
-    clientCredentialsAuthCredentials: {
-      oAuthClientId: config.clientId,
-      oAuthClientSecret: config.clientSecret,
+/**
+ * 获取 Access Token
+ */
+async function getAccessToken(config: PayPalConfig): Promise<string> {
+  const baseUrl = PAYPAL_BASE_URLS[config.mode]
+  const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')
+
+  console.log('🔑 获取 PayPal Access Token...')
+  console.log('  - Base URL:', baseUrl)
+
+  const response = await fetch(`${baseUrl}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    environment: config.mode === 'production' ? Environment.Production : Environment.Sandbox,
-    timeout: 30000, // 30秒超时
+    body: new URLSearchParams({
+      grant_type: 'client_credentials'
+    }),
   })
 
-  console.log('✅ PayPal 客户端创建成功')
-  return paypalClient
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error('❌ 获取 Access Token 失败:', errorText)
+    throw new Error(`获取 Access Token 失败: ${response.status} - ${errorText}`)
+  }
+
+  const data = await response.json()
+  console.log('✅ Access Token 获取成功')
+
+  return data.access_token
 }
 
 /**
@@ -60,33 +77,50 @@ export async function createPayPalOrder(
   console.log('  - 订单号:', orderNo)
   console.log('  - 原始金额 (CNY):', amount)
 
-  const paypalClient = createPayPalClient(config)
-  const ordersController = new OrdersController(paypalClient)
+  const baseUrl = PAYPAL_BASE_URLS[config.mode]
 
   // 转换为美元（PayPal 只支持美元结算）
-  // 假设 1 美元 = 7.2 人民币
   const usdAmount = (amount / 7.2).toFixed(2)
   console.log('  - 转换后金额 (USD):', usdAmount)
 
-  const requestBody = {
-    intent: CheckoutPaymentIntent.Capture,
-    purchaseUnits: [
-      {
-        referenceId: orderNo,
-        description: 'BG Remover 去背景服务配额购买',
-        amount: {
-          currencyCode: 'USD',
-          value: usdAmount,
-        },
-      },
-    ],
-  }
-
-  console.log('  - 请求体:', JSON.stringify(requestBody, null, 2))
-
   try {
-    console.log('\n📡 调用 PayPal API...')
-    const { result } = await ordersController.createOrder({ body: requestBody })
+    // 1. 获取 Access Token
+    const accessToken = await getAccessToken(config)
+
+    // 2. 创建订单
+    const requestBody = {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          reference_id: orderNo,
+          description: 'BG Remover 去背景服务配额购买',
+          amount: {
+            currency_code: 'USD',
+            value: usdAmount,
+          },
+        },
+      ],
+    }
+
+    console.log('📡 调用 PayPal API...')
+    console.log('  - 请求体:', JSON.stringify(requestBody, null, 2))
+
+    const response = await fetch(`${baseUrl}/v2/checkout/orders`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ PayPal API 调用失败:', errorText)
+      throw new Error(`PayPal API 调用失败: ${response.status} - ${errorText}`)
+    }
+
+    const result = await response.json()
 
     console.log('\n✅ PayPal API 调用成功')
     console.log('  - PayPal 订单 ID:', result.id)
@@ -94,7 +128,7 @@ export async function createPayPalOrder(
     console.log('  - Links:', result.links?.map(l => `${l.rel}: ${l.href}`).join(', '))
 
     // 提取支付链接
-    const approveLink = result.links?.find(link => link.rel === 'approve')
+    const approveLink = result.links?.find((link: any) => link.rel === 'approve')
     console.log('  - 支付链接:', approveLink?.href || '未找到')
 
     console.log('\n========================================')
@@ -111,14 +145,10 @@ export async function createPayPalOrder(
       status: result.status,
     }
   } catch (error: any) {
-    console.error('\n❌ PayPal API 调用失败')
+    console.error('\n❌ PayPal 订单创建失败')
     console.error('  - 错误名称:', error.name)
     console.error('  - 错误消息:', error.message)
     console.error('  - 错误堆栈:', error.stack)
-    if (error.response) {
-      console.error('  - 响应状态:', error.response.status)
-      console.error('  - 响应数据:', error.response.data)
-    }
     console.log('========================================\n')
 
     return {
@@ -144,12 +174,30 @@ export async function capturePayPalOrder(
   console.log('========================================')
   console.log('  - PayPal 订单 ID:', paypalOrderId)
 
-  const paypalClient = createPayPalClient(config)
-  const ordersController = new OrdersController(paypalClient)
+  const baseUrl = PAYPAL_BASE_URLS[config.mode]
 
   try {
+    // 1. 获取 Access Token
+    const accessToken = await getAccessToken(config)
+
+    // 2. 捕获支付
     console.log('\n📡 调用 PayPal 捕获 API...')
-    const { result } = await ordersController.captureOrder({ id: paypalOrderId })
+
+    const response = await fetch(`${baseUrl}/v2/checkout/orders/${paypalOrderId}/capture`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ PayPal 捕获失败:', errorText)
+      throw new Error(`PayPal 捕获失败: ${response.status} - ${errorText}`)
+    }
+
+    const result = await response.json()
 
     console.log('\n✅ PayPal 捕获成功')
     console.log('  - 订单 ID:', result.id)
@@ -163,9 +211,9 @@ export async function capturePayPalOrder(
       success: true,
       orderId: result.id,
       status: result.status,
-      purchaseUnits: result.purchaseUnits,
-      createTime: result.createTime,
-      updateTime: result.updateTime,
+      purchaseUnits: result.purchase_units,
+      createTime: result.create_time,
+      updateTime: result.update_time,
     }
   } catch (error: any) {
     console.error('\n❌ PayPal 捕获失败')
@@ -184,12 +232,6 @@ export async function capturePayPalOrder(
 /**
  * 验证 PayPal Webhook 签名
  *
- * @param config PayPal 配置
- * @param webhookId Webhook ID（需要在 PayPal Dashboard 创建 Webhook 时获取）
- * @param headers HTTP headers
- * @param body Webhook body
- * @returns 验证结果
- *
  * 注意：由于 Cloudflare Edge Runtime 环境限制，
  * Webhook 签名验证功能暂时跳过。
  * 建议在生产环境中使用 Cloudflare Workers 处理 Webhook 验证。
@@ -202,27 +244,11 @@ export async function verifyPayPalWebhook(
 ) {
   console.log('\n📩 收到 PayPal Webhook')
   console.log('  - Webhook ID:', webhookId)
+  console.log('⚠️  Webhook 签名验证已跳过（Edge Runtime 限制）')
 
-  try {
-    // 由于 Edge Runtime 环境限制，暂时跳过签名验证
-    // 实际部署时需要在 PayPal Dashboard 配置 Webhook URL
-    // 并在生产环境中使用 Cloudflare Workers 处理 Webhook 验证
-
-    console.log('⚠️  Webhook 签名验证已跳过（Edge Runtime 限制）')
-
-    return {
-      success: true,
-      verified: true,
-    }
-  } catch (error: any) {
-    console.error('❌ Webhook 验证失败')
-    console.error('  - 错误:', error.message)
-    console.error('  - 堆栈:', error.stack)
-
-    return {
-      success: false,
-      error: error.message || 'Webhook 验证失败',
-    }
+  return {
+    success: true,
+    verified: true,
   }
 }
 
