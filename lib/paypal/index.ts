@@ -8,11 +8,7 @@
  * - 处理支付回调
  */
 
-import { PayPalClient, OrdersController } from '@paypal/paypal-server-sdk'
-
-// PayPal 环境配置
-const SANDBOX_BASE_URL = 'https://api-m.sandbox.paypal.com'
-const PRODUCTION_BASE_URL = 'https://api-m.paypal.com'
+import { Client, Environment, OrdersController } from '@paypal/paypal-server-sdk'
 
 /**
  * PayPal 配置
@@ -27,10 +23,13 @@ export interface PayPalConfig {
  * 创建 PayPal 客户端
  */
 export function createPayPalClient(config: PayPalConfig) {
-  const paypalClient = new PayPalClient({
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-    baseUrl: config.mode === 'production' ? PRODUCTION_BASE_URL : SANDBOX_BASE_URL,
+  const paypalClient = new Client({
+    clientCredentialsAuthCredentials: {
+      oAuthClientId: config.clientId,
+      oAuthClientSecret: config.clientSecret,
+    },
+    environment: config.mode === 'production' ? Environment.Production : Environment.Sandbox,
+    timeout: 30000, // 30秒超时
   })
 
   return paypalClient
@@ -72,13 +71,13 @@ export async function createPayPalOrder(
       brand_name: 'BG Remover',
       landing_page: 'BILLING' as const,
       user_action: 'PAY_NOW' as const,
-      return_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://bg-remover-6dp.pages.dev'}/api/order/callback`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://bg-remover-6dp.pages.dev'}/pricing`,
+      return_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://bg-remover-6dp.pages.dev'}/payment/success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://bg-remover-6dp.pages.dev'}/payment/cancel`,
     },
   }
 
   try {
-    const { result } = await ordersController.createOrders(requestBody)
+    const { result } = await ordersController.ordersCreate(requestBody)
 
     // 提取支付链接
     const approveLink = result.links?.find(link => link.rel === 'approve')
@@ -116,7 +115,7 @@ export async function capturePayPalOrder(
   const ordersController = new OrdersController(paypalClient)
 
   try {
-    const { result } = await ordersController.captureOrder(paypalOrderId)
+    const { result } = await ordersController.ordersCapture(paypalOrderId)
 
     return {
       success: true,
@@ -146,7 +145,7 @@ export async function capturePayPalOrder(
  *
  * 注意：由于 Cloudflare Edge Runtime 环境限制，
  * Webhook 签名验证功能暂时跳过。
- * 建议在生产环境中使用 Cloudflare Workers 处理 Webhook。
+ * 建议在生产环境中使用 Cloudflare Workers 处理 Webhook 验证。
  */
 export async function verifyPayPalWebhook(
   config: PayPalConfig,
