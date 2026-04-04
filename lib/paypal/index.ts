@@ -114,9 +114,9 @@ export async function capturePayPalOrder(
       success: true,
       orderId: result.id,
       status: result.status,
-      purchaseUnits: result.purchase_units,
-      createTime: result.create_time,
-      updateTime: result.update_time,
+      purchaseUnits: result.purchaseUnits,
+      createTime: result.createTime,
+      updateTime: result.updateTime,
     }
   } catch (error: any) {
     console.error('PayPal capture error:', error)
