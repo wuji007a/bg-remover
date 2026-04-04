@@ -10,10 +10,9 @@ export const dynamic = 'force-dynamic'
  * 功能：
  * 1. 验证用户登录状态
  * 2. 查询产品信息
- * 3. 检查支付方式
- * 4. 创建订单记录
- * 5. 生成订单号
- * 6. 创建支付订单（PayPal）
+ * 3. 创建订单记录
+ * 4. 生成订单号
+ * 5. 返回 PayPal 支付链接（用户跳转到 PayPal 支付，支付成功后会通过 return_url 回来）
  *
  * 支持的支付方式：
  * - paypal（已上线）
@@ -34,7 +33,6 @@ export async function POST(request: NextRequest) {
     console.log('  - paymentMethod:', paymentMethod)
 
     if (!productId) {
-      console.error('❌ 缺少 productId')
       return NextResponse.json({
         success: false,
         error: '请选择产品'
@@ -46,7 +44,6 @@ export async function POST(request: NextRequest) {
     console.log('用户 token:', token ? `存在 (${token.substring(0, 30)}...)` : '不存在')
 
     if (!token) {
-      console.error('❌ 用户未登录')
       return NextResponse.json({
         success: false,
         error: '请先登录',
@@ -55,13 +52,15 @@ export async function POST(request: NextRequest) {
     }
 
     // 解码 token 获取用户 ID（这是 Google ID）
-    const decoded = JSON.parse(Buffer.from(token, 'base64').toString())
-    const googleId = decoded.userId  // 这是 Google ID（字符串）
+    let decoded: any
+    try {
+      decoded = JSON.parse(Buffer.from(token, 'base64').toString())
+    } catch (e) {
+      console.error('Token decode error:', e)
+      decoded = null
+    }
 
-    console.log('Google ID:', googleId)
-
-    if (!googleId) {
-      console.error('❌ Token 中无 userId')
+    if (!decoded || !decoded.userId) {
       return NextResponse.json({
         success: false,
         error: '无效的登录状态，请重新登录',
@@ -69,11 +68,14 @@ export async function POST(request: NextRequest) {
       }, { status: 401 })
     }
 
+    const userId = decoded.userId  // 这是 Google ID（字符串）
+
+    console.log('Google ID:', userId)
+
     // 获取 D1 数据库实例
     const DB = (process.env as any).DB
 
     if (!DB) {
-      console.error('❌ D1 数据库未配置')
       return NextResponse.json({
         success: false,
         error: 'D1 数据库未配置'
@@ -87,19 +89,18 @@ export async function POST(request: NextRequest) {
 
     const user = await DB.prepare(`
       SELECT id, email, name FROM users WHERE google_id = ?
-    `).bind(googleId).first() as {
+    `).bind(userId).first() as {
       id: number
       email: string
       name: string
     } | null
 
     if (!user) {
-      console.error('❌ 用户不存在，Google ID:', googleId)
       return NextResponse.json({
         success: false,
         error: '用户不存在，请重新登录',
         needLogin: true
-      }, { status: 404 })
+      }, { status: 403 })
     }
 
     const dbUserId = user.id  // 这是真实的数据库 ID（整数）
@@ -125,7 +126,6 @@ export async function POST(request: NextRequest) {
     } | null
 
     if (!product) {
-      console.error('❌ 产品不存在，ID:', productId)
       return NextResponse.json({
         success: false,
         error: '产品不存在或已下架'
@@ -152,7 +152,6 @@ export async function POST(request: NextRequest) {
     const methodInfo = availableMethods[paymentMethod as keyof typeof availableMethods]
 
     if (!methodInfo) {
-      console.error('❌ 不支持的支付方式:', paymentMethod)
       return NextResponse.json({
         success: false,
         error: '不支持的支付方式',
@@ -161,7 +160,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (!methodInfo.enabled) {
-      console.error('❌ 支付方式未启用:', methodInfo.name)
       return NextResponse.json({
         success: false,
         error: `${methodInfo.name} ${methodInfo.note}`,
@@ -205,7 +203,7 @@ export async function POST(request: NextRequest) {
     console.log('  - 配额:', product.quota_count)
 
     // ============================================
-    // 6. 创建支付订单（PayPal）
+    // 6. 创建 PayPal 订单并获取支付链接
     // ============================================
     console.log('\n📊 步骤 6: 创建 PayPal 订单')
 
@@ -228,6 +226,7 @@ export async function POST(request: NextRequest) {
           console.error('  - 错误:', paypalOrder.error)
 
           // PayPal 订单创建失败，回滚本地订单
+          console.log('📡 回滚本地订单...')
           await DB.prepare(`
             DELETE FROM orders WHERE order_no = ?
           `).bind(orderNo).run()
@@ -239,11 +238,6 @@ export async function POST(request: NextRequest) {
           }, { status: 500 })
         }
 
-        console.log('✅ PayPal 订单创建成功:')
-        console.log('  - PayPal 订单 ID:', paypalOrder.orderId)
-        console.log('  - 支付链接:', paypalOrder.paymentLink)
-        console.log('  - 金额:', paypalOrder.amount, paypalOrder.currency)
-
         paymentData = {
           paypalOrderId: paypalOrder.orderId,
           paymentLink: paypalOrder.paymentLink,
@@ -251,17 +245,12 @@ export async function POST(request: NextRequest) {
           currency: paypalOrder.currency,
         }
 
-        // 更新订单表，记录 PayPal 订单 ID
-        console.log('📡 更新订单表，记录 PayPal 订单 ID...')
-        await DB.prepare(`
-          UPDATE orders
-          SET payment_provider_order_id = ?
-          WHERE order_no = ?
-        `).bind(paypalOrder.orderId, orderNo).run()
-
-        console.log('✅ PayPal 订单 ID 已记录')
+        console.log('✅ PayPal 订单创建成功')
+        console.log('  - PayPal 订单 ID:', paypalOrder.orderId)
+        console.log('  - 支付链接:', paypalOrder.paymentLink)
+        console.log('  - 金额:', paypalOrder.amount, paypalOrder.currency)
       } catch (error: any) {
-        console.error('❌ PayPal 集成异常:')
+        console.error('❌ PayPal 集成异常')
         console.error('  - 错误名称:', error.name)
         console.error('  - 错误消息:', error.message)
         console.error('  - 错误堆栈:', error.stack)
@@ -307,7 +296,8 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('\n========================================')
-    console.error('❌ 订单创建异常:')
+    console.error('❌ 订单创建异常')
+    console.error('========================================\n')
     console.error('  - 错误名称:', error.name)
     console.error('  - 错误消息:', error.message)
     console.error('  - 错误堆栈:', error.stack)
