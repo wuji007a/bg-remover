@@ -77,7 +77,7 @@ export async function createPayPalOrder(
   }
 
   try {
-    const { result } = await ordersController.ordersCreate(requestBody)
+    const { result } = await ordersController.createOrder({ body: requestBody })
 
     // 提取支付链接
     const approveLink = result.links?.find(link => link.rel === 'approve')
@@ -115,7 +115,7 @@ export async function capturePayPalOrder(
   const ordersController = new OrdersController(paypalClient)
 
   try {
-    const { result } = await ordersController.ordersCapture(paypalOrderId)
+    const { result } = await ordersController.captureOrder({ id: paypalOrderId })
 
     return {
       success: true,
