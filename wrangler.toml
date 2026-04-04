@@ -18,8 +18,8 @@ database_id = "ef383f96-ad10-4b86-87d4-4853e1864bc5"
 # ----------------------------------------
 # 背景移除 API 配置
 # ----------------------------------------
-BG_REMOVER_PROVIDER = "clipdrop"
-# 注意：BG_REMOVER_API_KEY 需要在 Cloudflare Pages 环境变量中配置
+BG_REMOVER_PROVIDER = "remove.bg"
+# 注意：BG_REMOVER_API_KEY 或 REMOVE_BG_API_KEY 需要在 Cloudflare Pages 环境变量中配置
 # 不要在这里写 API Key，避免泄露！
 
 # ----------------------------------------
