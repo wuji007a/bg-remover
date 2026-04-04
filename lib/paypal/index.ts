@@ -67,13 +67,6 @@ export async function createPayPalOrder(
         },
       },
     ],
-    application_context: {
-      brand_name: 'BG Remover',
-      landing_page: 'BILLING' as const,
-      user_action: 'PAY_NOW' as const,
-      return_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://bg-remover-6dp.pages.dev'}/payment/success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://bg-remover-6dp.pages.dev'}/payment/cancel`,
-    },
   }
 
   try {
