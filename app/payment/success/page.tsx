@@ -12,11 +12,12 @@ function PaymentSuccessContent() {
 
   useEffect(() => {
     const processPayment = async () => {
+      // 从 sessionStorage 中获取订单号（在跳转到 PayPal 之前存储）
+      const orderNo = sessionStorage.getItem('orderNo')
       const token = searchParams.get('token')
       const payerId = searchParams.get('PayerID')
-      const customId = searchParams.get('custom') // 订单号
 
-      if (!token || !payerId || !customId) {
+      if (!orderNo || !token || !payerId) {
         setStatus('error')
         return
       }
@@ -29,7 +30,7 @@ function PaymentSuccessContent() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            orderNo: customId,
+            orderNo,
             status: 'success',
             paymentMethod: 'paypal',
             transactionId: token,
@@ -42,6 +43,9 @@ function PaymentSuccessContent() {
           setStatus('success')
           setOrderNo(data.data.orderNo)
           setQuota(data.data.quotaAwarded)
+
+          // 清除 sessionStorage 中的订单号
+          sessionStorage.removeItem('orderNo')
         } else {
           setStatus('error')
         }

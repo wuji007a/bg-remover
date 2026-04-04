@@ -54,6 +54,9 @@ export default function PricingPage() {
       const data = await res.json()
 
       if (data.success) {
+        // 存储订单号到 sessionStorage（用于支付成功后回调）
+        sessionStorage.setItem('orderNo', data.data.orderNo)
+
         // 跳转到 PayPal 支付页面
         if (data.data.paymentLink) {
           window.location.href = data.data.paymentLink

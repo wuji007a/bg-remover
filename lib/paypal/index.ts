@@ -94,6 +94,7 @@ export async function createPayPalOrder(
       purchase_units: [
         {
           reference_id: orderNo,
+          custom_id: orderNo,  // 用于前端回调时获取订单号
           description: 'BG Remover 去背景服务配额购买',
           amount: {
             currency_code: 'USD',
@@ -101,6 +102,10 @@ export async function createPayPalOrder(
           },
         },
       ],
+      application_context: {
+        return_url: 'https://bg-remover-6dp.pages.dev/payment/success',
+        cancel_url: 'https://bg-remover-6dp.pages.dev/payment/cancel',
+      },
     }
 
     console.log('📡 调用 PayPal API...')

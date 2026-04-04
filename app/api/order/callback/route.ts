@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyPayPalWebhook, getPayPalConfig } from '@/lib/paypal'
 
 export const runtime = 'edge'
 export const dynamic = 'force-dynamic'
@@ -14,10 +13,10 @@ export const dynamic = 'force-dynamic'
  * 4. 更新订单状态
  * 5. 更新用户总消费
  *
- * 支持的支付回调：
- * - PayPal（通过 PayPal Token 验证）
- * - 微信支付回调
- * - 支付宝回调
+ * 说明：
+ * - 这个 API 由前端在 PayPal 支付成功后调用
+ * - PayPal 支付成功后，会通过 return_url 跳转回 /payment/success
+ * - 前端从 URL 参数中提取订单号，然后调用这个 API 发放配额
  */
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +29,8 @@ export async function POST(request: NextRequest) {
         error: '缺少必要参数'
       }, { status: 400 })
     }
+
+    console.log('📝 收到支付回调:', { orderNo, status, paymentMethod, transactionId })
 
     // 获取 D1 数据库实例
     const DB = (process.env as any).DB
@@ -55,31 +56,34 @@ export async function POST(request: NextRequest) {
       status: number
       payment_method: string
       payment_provider: string
-      payment_provider_order_id: string
     } | null
 
     if (!order) {
+      console.error('❌ 订单不存在:', orderNo)
       return NextResponse.json({
         success: false,
         error: '订单不存在'
       }, { status: 404 })
     }
 
-    // 检查订单状态
+    // 检查订单状态，避免重复处理
     if (order.status === 1) {
+      console.log('✅ 订单已支付，跳过处理:', orderNo)
       return NextResponse.json({
-        success: false,
-        error: '订单已支付',
-        orderNo,
-        status: order.status
-      }, { status: 400 })
+        success: true,
+        data: {
+          orderNo,
+          status: order.status,
+          message: '订单已支付'
+        }
+      })
     }
 
     // ============================================
     // 2. 处理支付成功
     // ============================================
     if (status === 'success' || status === 'paid') {
-      console.log(`✅ 支付成功：${orderNo}（${paymentMethod}）`)
+      console.log('✅ 处理支付成功:', orderNo)
 
       // ============================================
       // 3. 发放配额
@@ -105,7 +109,7 @@ export async function POST(request: NextRequest) {
         order.id
       ).run()
 
-      console.log(`✅ 更新订单状态：${orderNo} → 已支付`)
+      console.log('✅ 更新订单状态:', orderNo, '→ 已支付')
 
       // ============================================
       // 5. 更新用户总消费
@@ -134,7 +138,7 @@ export async function POST(request: NextRequest) {
       })
 
     } else if (status === 'failed' || status === 'cancelled') {
-      console.log(`❌ 支付失败：${orderNo}（${status}）`)
+      console.log('❌ 处理支付失败:', orderNo, status)
 
       // 更新订单状态为失败
       await DB.prepare(`
@@ -159,7 +163,10 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error('Error:', error)
+    console.error('❌ 支付回调异常:', error)
+    console.error('  - 错误名称:', error.name)
+    console.error('  - 错误消息:', error.message)
+    console.error('  - 错误堆栈:', error.stack)
 
     return NextResponse.json({
       success: false,
@@ -169,180 +176,27 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PayPal Webhook 处理
+ * Webhook 端点说明
  *
- * PayPal 会通过 Webhook 发送支付通知
- * 需要验证 Webhook 签名
+ * 说明：由于 Cloudflare Edge Runtime 环境限制，
+ * Webhook 签名验证功能暂时无法使用。
+ * 因此本系统采用前端回调方式处理支付成功事件，
+ * 而不依赖 PayPal Webhook。
+ *
+ * 支付流程：
+ * 1. 用户点击购买
+ * 2. 创建订单，获取 PayPal 支付链接
+ * 3. 用户在 PayPal 完成支付
+ * 4. PayPal 重定向到 /payment/success?token=xxx
+ * 5. 前端从 URL 中提取订单号（需要我们在 return_url 中传递）
+ * 6. 前端调用 POST /api/order/callback 发放配额
  */
 export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
-    message: 'PayPal Webhook 端点正常',
-    note: '需要在 Cloudflare Pages 中配置 Webhook URL',
-    webhookUrl: new URL('/api/order/callback', request.url).toString()
+    message: '支付回调端点正常',
+    note: '本系统使用前端回调方式，不依赖 Webhook',
+    endpoint: '/api/order/callback',
+    method: 'POST'
   })
-}
-
-/**
- * PayPal Webhook 接收端点
- *
- * 用于接收 PayPal 的支付通知
- */
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.text()
-    const headers = request.headers
-
-    // 获取 PayPal 配置
-    const paypalConfig = getPayPalConfig()
-    const webhookId = process.env.PAYPAL_WEBHOOK_ID
-
-    if (!webhookId) {
-      console.error('PAYPAL_WEBHOOK_ID 未配置')
-      return NextResponse.json({
-        success: false,
-        error: 'Webhook 配置不完整'
-      }, { status: 500 })
-    }
-
-    // 验证 Webhook 签名
-    const verification = await verifyPayPalWebhook(
-      paypalConfig,
-      webhookId,
-      headers,
-      body
-    )
-
-    if (!verification.success || !verification.verified) {
-      console.error('Webhook 验证失败')
-      return NextResponse.json({
-        success: false,
-        error: 'Webhook 验证失败'
-      }, { status: 401 })
-    }
-
-    // 解析 Webhook 事件
-    const eventData = JSON.parse(body)
-    const eventType = eventData.event_type
-    const resource = eventData.resource
-
-    console.log(`📩 PayPal Webhook 事件：${eventType}`)
-
-    // 获取 D1 数据库实例
-    const DB = (process.env as any).DB
-
-    if (!DB) {
-      return NextResponse.json({
-        success: false,
-        error: 'D1 数据库未配置'
-      }, { status: 500 })
-    }
-
-    // 处理支付完成的订单
-    if (eventType === 'PAYMENT.CAPTURE.COMPLETED' || eventType === 'PAYMENT.CAPTURE.DENIED') {
-      // 从 PayPal 订单 ID 提取
-      const paypalOrderId = resource.id
-
-      if (!paypalOrderId) {
-        console.error('无法提取 PayPal 订单 ID')
-        return NextResponse.json({
-          success: false,
-          error: '无法提取 PayPal 订单 ID'
-        }, { status: 400 })
-      }
-
-      // 通过 PayPal 订单 ID 查询本地订单
-      const order = await DB.prepare(`
-        SELECT * FROM orders WHERE payment_provider_order_id = ?
-      `).bind(paypalOrderId).first() as {
-        id: number
-        user_id: number
-        quota_awarded: number
-        amount: number
-        status: number
-        order_no: string
-      } | null
-
-      if (!order) {
-        console.error(`订单不存在：PayPal 订单 ID ${paypalOrderId}`)
-        return NextResponse.json({
-          success: false,
-          error: '订单不存在'
-        }, { status: 404 })
-      }
-
-      // 检查订单状态，避免重复处理
-      if (order.status === 1) {
-        console.log(`订单已处理：${order.order_no}`)
-        return NextResponse.json({
-          success: true,
-          message: '订单已处理'
-        })
-      }
-
-      // 只处理成功的情况
-      if (eventType === 'PAYMENT.CAPTURE.COMPLETED') {
-        // 发放配额
-        await DB.prepare(`
-          INSERT INTO user_quota (user_id, quota_type, total)
-          VALUES (?, 2, ?)
-        `).bind(order.user_id, order.quota_awarded).run()
-
-        console.log(`✅ 发放配额：用户 ${order.user_id}，${order.quota_awarded}次`)
-
-        // 更新订单状态
-        await DB.prepare(`
-          UPDATE orders
-          SET status = 1, paid_at = datetime('now'), transaction_id = ?
-          WHERE id = ?
-        `).bind(paypalOrderId, order.id).run()
-
-        console.log(`✅ 更新订单状态：${order.order_no} → 已支付`)
-
-        // 更新用户总消费
-        await DB.prepare(`
-          UPDATE users
-          SET total_spent = total_spent + ?
-          WHERE id = ?
-        `).bind(order.amount, order.user_id).run()
-
-        console.log(`✅ 更新用户消费：用户 ${order.user_id}，+¥${order.amount}`)
-
-        return NextResponse.json({
-          success: true,
-          message: '支付成功，配额已发放'
-        })
-      } else {
-        // 支付被拒绝
-        await DB.prepare(`
-          UPDATE orders
-          SET status = 2
-          WHERE id = ?
-        `).bind(order.id).run()
-
-        console.log(`❌ 支付被拒绝：${order.order_no}`)
-
-        return NextResponse.json({
-          success: false,
-          error: '支付被拒绝',
-          orderNo: order.order_no
-        }, { status: 400 })
-      }
-    }
-
-    // 其他事件类型
-    return NextResponse.json({
-      success: true,
-      message: `Webhook 事件已接收：${eventType}`,
-      eventType
-    })
-
-  } catch (error: any) {
-    console.error('PayPal Webhook error:', error)
-
-    return NextResponse.json({
-      success: false,
-      error: error.message || 'Webhook 处理失败'
-    }, { status: 500 })
-  }
 }
