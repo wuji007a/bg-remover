@@ -301,11 +301,15 @@ export function getPayPalConfig(): PayPalConfig {
 
   const clientId = process.env.PAYPAL_CLIENT_ID
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET
-  const mode = (process.env.PAYPAL_MODE || 'sandbox') as 'sandbox' | 'production'
+  const rawMode = process.env.PAYPAL_MODE || 'sandbox'
+
+  // 将 'live' 映射为 'production'（PayPal API 期望 production）
+  const mode = (rawMode === 'live' ? 'production' : rawMode) as 'sandbox' | 'production'
 
   console.log('  - PAYPAL_CLIENT_ID:', clientId?.substring(0, 20) + '...')
   console.log('  - PAYPAL_CLIENT_SECRET:', clientSecret ? '已设置' : '未设置')
-  console.log('  - PAYPAL_MODE:', mode)
+  console.log('  - PAYPAL_MODE (原始):', rawMode)
+  console.log('  - PAYPAL_MODE (映射):', mode)
 
   if (!clientId || !clientSecret) {
     const missing = !clientId ? 'PAYPAL_CLIENT_ID' : 'PAYPAL_CLIENT_SECRET'
