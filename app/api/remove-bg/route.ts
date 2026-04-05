@@ -260,24 +260,21 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================
-    // 8. Return result
+    // 8. Return result (directly as binary stream)
     // ============================================
-    // Convert buffer to blob and create URL
-    const blob = new Blob([result.buffer], { type: result.contentType })
-    const imageUrl = URL.createObjectURL(blob)
-
     // Get provider info
     const providerInfo = service.getProviderInfo()
 
     console.log('✅ Request completed successfully')
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        imageUrl,
-        provider: providerInfo.name,
+    // Return the image buffer directly (not JSON)
+    // Frontend will handle: const blob = await res.blob()
+    return new NextResponse(result.buffer, {
+      status: 200,
+      headers: {
+        'Content-Type': result.contentType,
+        'X-Provider': providerInfo.name,
       },
-      message: 'Background removed successfully'
     })
 
   } catch (error: any) {

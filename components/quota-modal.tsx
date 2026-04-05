@@ -62,9 +62,12 @@ export default function QuotaModal({ isOpen, onClose }: QuotaModalProps) {
 
       if (data.success) {
         // Redirect to PayPal payment page
-        // TODO: Actual PayPal redirect
-        alert('Order created successfully! Order No: ' + data.data.orderNo)
-        onClose()
+        if (data.data.paymentLink) {
+          window.location.href = data.data.paymentLink
+        } else {
+          alert('Order created successfully! Order No: ' + data.data.orderNo)
+          onClose()
+        }
       } else {
         alert('Failed to create order: ' + data.error)
       }
