@@ -17,6 +17,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false)
+  const [quotaKey, setQuotaKey] = useState(0) // 用于刷新配额显示
 
   // Check login status on initialization
   useEffect(() => {
@@ -110,6 +111,9 @@ export default function Home() {
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       setResultImage(url)
+
+      // 刷新配额显示
+      setQuotaKey(prev => prev + 1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Processing failed, please try again')
     } finally {
@@ -166,7 +170,7 @@ export default function Home() {
             </h1>
             {user && (
               <div className="flex items-center gap-3">
-                <QuotaBadge />
+                <QuotaBadge key={quotaKey} />
                 <a
                   href="/pricing"
                   className="flex items-center gap-1 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium"
