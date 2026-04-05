@@ -193,7 +193,7 @@ export default function Home() {
               <span className="text-gray-700 text-sm truncate max-w-[120px]" title={user.name}>
                 {(() => {
                   // 如果名字是重复的，只显示一个
-                  const parts = user.name.split(' ').filter(p => p)
+                  const parts = user.name.split(' ').filter((p: string) => p)
                   if (parts.length === 2 && parts[0] === parts[1]) {
                     return parts[0]
                   }
