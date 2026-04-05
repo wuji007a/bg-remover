@@ -190,7 +190,9 @@ export default function Home() {
                 alt={user.name}
                 className="w-8 h-8 rounded-full"
               />
-              <span className="text-gray-700 text-sm">{user.name}</span>
+              <span className="text-gray-700 text-sm truncate max-w-[120px]" title={user.name}>
+                {user.name}
+              </span>
               <button
                 onClick={handleLogout}
                 className="text-sm text-red-600 hover:text-red-700"
