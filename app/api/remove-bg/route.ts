@@ -161,8 +161,13 @@ export async function POST(request: NextRequest) {
     // ============================================
     let quotaId: number | null = null
 
+    console.log(`\n📊 开始配额扣减流程...`)
+    console.log(`  - DB 是否可用: ${!!DB}`)
+    console.log(`  - dbUserId: ${dbUserId}`)
+
     if (DB && dbUserId) {
       try {
+        // 先查询当前配额
         const quotaCheck = await DB.prepare(`
           SELECT
             (SELECT COALESCE(SUM(total - used), 0) FROM user_quota WHERE user_id = ? AND quota_type = 2) as prepaid,
@@ -172,44 +177,91 @@ export async function POST(request: NextRequest) {
         const prepaid = quotaCheck?.prepaid || 0
         const free = quotaCheck?.free || 0
 
+        console.log(`  - 扣减前配额: prepaid=${prepaid}, free=${free}, total=${prepaid + free}`)
+
         if (prepaid > 0) {
-          // Deduct purchased quota
-          const quotaUpdate = await DB.prepare(`
-            UPDATE user_quota
-            SET used = used + 1
-            WHERE id = (
-              SELECT id FROM user_quota
-              WHERE user_id = ? AND quota_type = 2 AND total > used
-              ORDER BY created_at ASC
-              LIMIT 1
-            )
-            RETURNING id
+          // 扣除购买配额
+          console.log(`  - 扣除购买配额...`)
+
+          // 先查询要扣除的配额 ID
+          const quotaToDeduct = await DB.prepare(`
+            SELECT id FROM user_quota
+            WHERE user_id = ? AND quota_type = 2 AND total > used
+            ORDER BY created_at ASC
+            LIMIT 1
           `).bind(dbUserId).first() as { id: number } | null
 
-          quotaId = quotaUpdate!.id
-          console.log(`✅ Deducted purchased quota: ${quotaId}`)
+          if (quotaToDeduct) {
+            console.log(`  - 找到配额记录: id=${quotaToDeduct.id}`)
+
+            // 执行扣减
+            const result = await DB.prepare(`
+              UPDATE user_quota
+              SET used = used + 1
+              WHERE id = ?
+            `).bind(quotaToDeduct.id).run()
+
+            console.log(`  - 扣减结果: success=${result.success}, meta=${JSON.stringify(result.meta)}`)
+
+            quotaId = quotaToDeduct.id
+            console.log(`✅ 已扣除购买配额: ${quotaId}`)
+          } else {
+            console.error(`❌ 未找到可用的购买配额记录`)
+          }
         } else if (free > 0) {
-          // Deduct free quota
-          const quotaUpdate = await DB.prepare(`
-            UPDATE user_quota
-            SET used = used + 1
-            WHERE id = (
-              SELECT id FROM user_quota
-              WHERE user_id = ? AND quota_type = 1 AND total > used
-              ORDER BY created_at DESC
-              LIMIT 1
-            )
-            RETURNING id
+          // 扣除免费配额
+          console.log(`  - 扣除免费配额...`)
+
+          // 先查询要扣除的配额 ID
+          const quotaToDeduct = await DB.prepare(`
+            SELECT id FROM user_quota
+            WHERE user_id = ? AND quota_type = 1 AND total > used
+            ORDER BY created_at DESC
+            LIMIT 1
           `).bind(dbUserId).first() as { id: number } | null
 
-          quotaId = quotaUpdate!.id
-          console.log(`✅ Deducted free quota: ${quotaId}`)
+          if (quotaToDeduct) {
+            console.log(`  - 找到配额记录: id=${quotaToDeduct.id}`)
+
+            // 执行扣减
+            const result = await DB.prepare(`
+              UPDATE user_quota
+              SET used = used + 1
+              WHERE id = ?
+            `).bind(quotaToDeduct.id).run()
+
+            console.log(`  - 扣减结果: success=${result.success}, meta=${JSON.stringify(result.meta)}`)
+
+            quotaId = quotaToDeduct.id
+            console.log(`✅ 已扣除免费配额: ${quotaId}`)
+          } else {
+            console.error(`❌ 未找到可用的免费配额记录`)
+          }
+        } else {
+          console.error(`❌ 无可用配额可扣除`)
         }
 
+        // 扣减后再次查询配额
+        const quotaAfter = await DB.prepare(`
+          SELECT
+            (SELECT COALESCE(SUM(total - used), 0) FROM user_quota WHERE user_id = ? AND quota_type = 2) as prepaid,
+            (SELECT COALESCE(total - used, 0) FROM user_quota WHERE user_id = ? AND quota_type = 1 ORDER BY created_at DESC LIMIT 1) as free
+        `).bind(dbUserId, dbUserId).first() as { prepaid: number, free: number } | null
+
+        const prepaidAfter = quotaAfter?.prepaid || 0
+        const freeAfter = quotaAfter?.free || 0
+        console.log(`  - 扣减后配额: prepaid=${prepaidAfter}, free=${freeAfter}, total=${prepaidAfter + freeAfter}`)
+        console.log(`  - 扣减数量: ${(prepaid + free) - (prepaidAfter + freeAfter)}`)
+
       } catch (quotaError: any) {
-        console.error('❌ Failed to deduct quota:', quotaError)
+        console.error('❌ 配额扣减失败:', quotaError)
+        console.error('  - 错误名称:', quotaError.name)
+        console.error('  - 错误消息:', quotaError.message)
+        console.error('  - 错误堆栈:', quotaError.stack)
         // Continue execution, return result even if quota deduction fails
       }
+    } else {
+      console.error(`❌ 配额扣减跳过: DB 或 dbUserId 为空`)
     }
 
     // ============================================
