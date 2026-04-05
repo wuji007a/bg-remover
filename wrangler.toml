@@ -18,8 +18,8 @@ database_id = "ef383f96-ad10-4b86-87d4-4853e1864bc5"
 # ----------------------------------------
 # 背景移除 API 配置
 # ----------------------------------------
-BG_REMOVER_PROVIDER = "remove.bg"
-# 注意：BG_REMOVER_API_KEY 或 REMOVE_BG_API_KEY 需要在 Cloudflare Pages 环境变量中配置
+BG_REMOVER_PROVIDER = "clipdrop"
+# 注意：BG_REMOVER_API_KEY 需要在 Cloudflare Pages 环境变量中配置
 # 不要在这里写 API Key，避免泄露！
 
 # ----------------------------------------
@@ -37,15 +37,15 @@ NEXT_PUBLIC_GOOGLE_REDIRECT_URI = "https://bg-remover-6dp.pages.dev/api/auth/cal
 # ----------------------------------------
 # PayPal 配置
 # ----------------------------------------
-PAYPAL_CLIENT_ID = "AYOsBGr8P3Yt4DRCiEXkO92MMcXSu91LFKsKZoKzL4jfD39E1EMdY-vp2nvwaoXjQUNgETUf0WG826hk"
-PAYPAL_MODE = "sandbox"
-PAYPAL_WEBHOOK_ID = "71P08758JG9218449"
+PAYPAL_CLIENT_ID = "AfWYVEvN0V1IqidD6uHjQExaQcZdeLm9JYFkQV-XtrBytnXwOKu1veba8PXepCblskMIogW1SoQIK_UI"
+PAYPAL_MODE = "live"
+PAYPAL_WEBHOOK_ID = "8G146258M4563672B"
 
 # ----------------------------------------
 # PayPal 配置（公开，用于前端）
 # ----------------------------------------
-NEXT_PUBLIC_PAYPAL_CLIENT_ID = "AYOsBGr8P3Yt4DRCiEXkO92MMcXSu91LFKsKZoKzL4jfD39E1EMdY-vp2nvwaoXjQUNgETUf0WG826hk"
-NEXT_PUBLIC_PAYPAL_MODE = "sandbox"
+NEXT_PUBLIC_PAYPAL_CLIENT_ID = "AfWYVEvN0V1IqidD6uHjQExaQcZdeLm9JYFkQV-XtrBytnXwOKu1veba8PXepCblskMIogW1SoQIK_UI"
+NEXT_PUBLIC_PAYPAL_MODE = "live"
 
 # ----------------------------------------
 # 用量限流配置
